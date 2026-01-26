@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>점자 타자 연습 게임 (웹)</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif; }
+    body { margin: 0; background:#0b0f17; color:#eaf0ff; }
+    header { padding: 16px 18px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; gap:12px; align-items:center; flex-wrap:wrap;}
+    header .pill { padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,.08); font-size: 12px; }
+    main { display:grid; grid-template-columns: 1.25fr .75fr; gap:14px; padding: 14px; }
+    @media (max-width: 900px){ main{ grid-template-columns:1fr; } }
+
+    .card { background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); border-radius: 16px; overflow:hidden; }
+    .card h2 { margin:0; padding:12px 14px; font-size: 14px; border-bottom:1px solid rgba(255,255,255,.08); }
+    .card .content { padding: 14px; }
+
+    #gameWrap { position:relative; height: 440px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border-radius: 16px; overflow:hidden; }
+    #lane { position:absolute; inset: 0; }
+    .word {
+      position:absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.35);
+      border: 1px solid rgba(255,255,255,.12);
+      font-weight: 800;
+      letter-spacing: .5px;
+      backdrop-filter: blur(6px);
+      user-select:none;
+      white-space: nowrap;
+    }
+    #floor {
+      position:absolute; left:0; right:0; bottom:0; height: 54px;
+      border-top: 1px dashed rgba(255,255,255,.18);
+      display:flex; align-items:center; justify-content:center;
+      color: rgba(234,240,255,.7); font-size: 12px;
+      background: rgba(0,0,0,.15);
+    }
+
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .btn { cursor:pointer; border:1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.08); color:#eaf0ff;
+      padding:10px 12px; border-radius: 12px; font-weight: 800; }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary { background: rgba(110,231,183,.18); border-color: rgba(110,231,183,.35); }
+
+    .monoBox {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      background: rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.10);
+      padding:10px 12px; border-radius: 12px; width: 100%; box-sizing:border-box;
+      line-height: 1.5;
+    }
+    .monoBox small { color: rgba(234,240,255,.65); display:block; margin-top:6px; }
+
+    .brailleGrid { display:grid; grid-template-columns: repeat(2, 22px); grid-template-rows: repeat(3, 22px); gap:8px; }
+    .dot { width:22px; height:22px; border-radius: 999px; border:1px solid rgba(255,255,255,.20); background: rgba(255,255,255,.06); }
+    .dot.on { background: rgba(96,165,250,.55); border-color: rgba(96,165,250,.75); }
+
+    textarea {
+      width: 100%; min-height: 210px; resize: vertical;
+      border-radius: 12px; border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.25); color:#eaf0ff; padding: 10px 12px; box-sizing:border-box;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+    }
+    .hint { color: rgba(234,240,255,.7); font-size: 12px; line-height:1.5; margin-top: 10px;}
+    .warn { color: rgba(251,191,36,.95); }
+    .ok { color: rgba(110,231,183,.95); }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="pill">입력키: 1~6점 = F D S / J K L</div>
+    <div class="pill">셀 확정: 키를 모두 떼면 1글자(셀) 입력</div>
+    <div class="pill">채점: Enter (가장 아래 단어)</div>
+    <div class="pill">삭제: Backspace</div>
+    <div class="pill">일시정지: Space</div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>게임</h2>
+      <div class="content">
+        <div class="row" style="justify-content:space-between; margin-bottom:10px;">
+          <div class="pill">
+            점수: <b id="score">0</b> /
+            콤보: <b id="combo">0</b> /
+            라이프: <b id="life">3</b>
+          </div>
+          <div class="row">
+            <button class="btn primary" id="startBtn">시작</button>
+            <button class="btn" id="resetBtn">리셋</button>
+          </div>
+        </div>
+
+        <div id="gameWrap">
+          <div id="lane"></div>
+          <div id="floor">바닥 도착 = 라이프 -1 (그 단어 제거)</div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <div class="monoBox" id="typingBox"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>입력 상태 / 정답 데이터</h2>
+      <div class="content">
+        <div class="pill">현재 누르고 있는 점(셀)</div>
+        <div class="row" style="margin-top:10px; gap:14px;">
+          <div class="brailleGrid" id="dots">
+            <div class="dot" data-dot="1"></div>
+            <div class="dot" data-dot="4"></div>
+            <div class="dot" data-dot="2"></div>
+            <div class="dot" data-dot="5"></div>
+            <div class="dot" data-dot="3"></div>
+            <div class="dot" data-dot="6"></div>
+          </div>
+          <div class="pill">현재 셀(6비트): <b id="cellBits">000000</b></div>
+        </div>
+
+        <div class="hint">
+          <b>정답 데이터 형식</b><br/>
+          단어 → 점자 셀들의 6비트 문자열을 공백으로 나열<br/>
+          예: <code>"학교": "100000 010100 001010"</code><br/>
+          ⚠️ 이 게임은 “정답 비교”를 셀열로 하기 때문에, 네가 쓰는 교재 기준에 맞춰 셀열을 넣어야 해.
+        </div>
+
+        <textarea id="dataArea"></textarea>
+        <div class="row" style="margin-top:10px;">
+          <button class="btn" id="applyDataBtn">데이터 적용</button>
+          <span class="hint warn" id="dataMsg"></span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+<script>
+/** 키 -> 점 매핑 */
+const KEY_TO_DOT = { 'f': 1, 'd': 2, 's': 3, 'j': 4, 'k': 5, 'l': 6 };
+
+let running = false;
+let paused = false;
+
+let score = 0;
+let combo = 0;
+let life = 3;
+
+const laneEl = document.getElementById('lane');
+const scoreEl = document.getElementById('score');
+const comboEl = document.getElementById('combo');
+const lifeEl = document.getElementById('life');
+const typingBox = document.getElementById('typingBox');
+
+const startBtn = document.getElementById('startBtn');
+const resetBtn = document.getElementById('resetBtn');
+
+const dotsEl = document.getElementById('dots');
+const cellBitsEl = document.getElementById('cellBits');
+
+const dataArea = document.getElementById('dataArea');
+const applyDataBtn = document.getElementById('applyDataBtn');
+const dataMsg = document.getElementById('dataMsg');
+
+/**
+ * WORD_DB: 단어 -> "101000 010000 ..." (셀열)
+ * ✅ 여기 예시는 형식용. 너가 JSON으로 바꾸면 그 단어들이 떨어짐.
+ */
+let WORD_DB = {
+  "학교": "010110 100000 000100 001101",
+  "교구": "000100 001101 000100 101100",
+  "연구": "100001 000100 101100"
+};
+
+function refreshDataArea(){
+  dataArea.value = JSON.stringify(WORD_DB, null, 2);
+}
+refreshDataArea();
+
+/** 입력 버퍼: 셀열 */
+let inputCells = [];
+
+/** 현재 chord(누르는 중) */
+let heldDots = new Set();
+let heldKeys = new Set();
+
+/** 활성 단어들(여러 개) */
+let activeWords = []; // {text, y, speed, el, answerCells[]}
+
+let spawnTimer = 0;
+let lastT = performance.now();
+
+/** 유틸 */
+function parseAnswerCells(str){
+  return String(str).trim().split(/\s+/).filter(Boolean);
+}
+function bitsFromDots(dotSet){
+  let bits = '';
+  for(let d=1; d<=6; d++) bits += dotSet.has(d) ? '1' : '0';
+  return bits;
+}
+function setHud(){
+  scoreEl.textContent = score;
+  comboEl.textContent = combo;
+  lifeEl.textContent = life;
+}
+function renderHeldDots(){
+  const bits = bitsFromDots(heldDots);
+  cellBitsEl.textContent = bits;
+  [...dotsEl.querySelectorAll('.dot')].forEach(dot => {
+    const d = Number(dot.dataset.dot);
+    dot.classList.toggle('on', heldDots.has(d));
+  });
+}
+function resetInput(){
+  inputCells = [];
+  heldDots.clear();
+  heldKeys.clear();
+  renderHeldDots();
+  renderTyping();
+}
+
+/**
+ * ✅ “일반 글자 진행도 표시”
+ * - 완전한 한글 점자 해독/조합은 규칙이 복잡하니까,
+ *   MVP에서는 '현재 채점 대상 단어' 기준으로
+ *   "입력한 셀 개수만큼" 글자를 진행 표시해줘.
+ * - 즉: 정답 셀열 길이 = 단어 글자 수 라고 네 데이터가 맞춰져 있으면
+ *   입력 진행도가 정확하게 표시됨.
+ */
+function getUrgentWord(){
+  if(activeWords.length === 0) return null;
+  // 가장 아래(바닥에 가까운) 단어를 채점 대상으로
+  return activeWords.reduce((a,b) => (a.y > b.y ? a : b));
+}
+
+function renderTyping(msg = ''){
+  const target = getUrgentWord();
+  const targetText = target ? target.text : '(단어 없음)';
+  const targetCells = target ? target.answerCells : [];
+
+  const typedCount = inputCells.length;
+  const targetChars = Array.from(targetText); // 글자 단위
+  const shown = target ? targetChars.slice(0, Math.min(typedCount, targetChars.length)).join('') : '';
+
+  // 입력이 정답의 prefix인지도 표시(빨리 틀린 걸 알 수 있게)
+  let prefixOk = true;
+  for(let i=0; i<inputCells.length && i<targetCells.length; i++){
+    if(inputCells[i] !== targetCells[i]) { prefixOk = false; break; }
+  }
+  const prefixBadge = target
+    ? (prefixOk ? `<span class="ok">● 입력 진행 OK</span>` : `<span class="warn">● 여기서부터 틀렸을 수 있음</span>`)
+    : '';
+
+  typingBox.innerHTML = `
+    <div><b>채점 대상(가장 아래 단어)</b>: ${targetText}</div>
+    <div style="margin-top:6px;"><b>내가 입력한 글자(진행도)</b>: ${shown || '(아직 없음)'} ${prefixBadge}</div>
+    <div style="margin-top:6px;"><b>내가 입력한 셀열</b>: ${inputCells.join(' ') || '(비어있음)'}</div>
+    ${msg ? `<small>${msg}</small>` : `<small>팁: 셀 1개 = F/D/S/J/K/L 동시에 누르고 → 다 떼면 입력됨. Enter로 채점.</small>`}
+  `;
+}
+
+function loseLife(){
+  life -= 1;
+  combo = 0;
+  setHud();
+  if(life <= 0){
+    running = false;
+    paused = false;
+    alert('게임 오버! 리셋하거나 다시 시작해줘.');
+  }
+}
+
+/** 단어 생성 */
+function spawnWord(){
+  const keys = Object.keys(WORD_DB);
+  if(keys.length === 0) return;
+
+  const text = keys[Math.floor(Math.random() * keys.length)];
+  const answerCells = parseAnswerCells(WORD_DB[text]);
+
+  const el = document.createElement('div');
+  el.className = 'word';
+  el.textContent = text;
+  el.style.top = '-10px';
+  laneEl.appendChild(el);
+
+  activeWords.push({
+    text,
+    y: -10,
+    speed: 60 + Math.random()*60 + Math.min(180, score/12),
+    el,
+    answerCells
+  });
+}
+
+/** 단어 제거 */
+function removeWord(w){
+  const idx = activeWords.indexOf(w);
+  if(idx >= 0) activeWords.splice(idx, 1);
+  if(w.el?.remove) w.el.remove();
+}
+
+/** 채점(Enter): 가장 아래 단어 기준 */
+function judge(){
+  const target = getUrgentWord();
+  if(!target) return;
+
+  const user = inputCells.join(' ').trim();
+  const ans = target.answerCells.join(' ').trim();
+
+  if(user === ans){
+    score += 120 + combo*15;
+    combo += 1;
+    removeWord(target);
+    resetInput();
+    renderTyping('정답! 단어 제거됨.');
+  } else {
+    combo = 0;
+    score = Math.max(0, score - 30);
+    resetInput();
+    renderTyping('오답. 입력 초기화됨. (단어는 계속 내려옴)');
+  }
+  setHud();
+}
+
+/** 일시정지 */
+function togglePause(){
+  if(!running) return;
+  paused = !paused;
+}
+
+/** 루프 */
+function tick(t){
+  const dt = (t - lastT)/1000;
+  lastT = t;
+
+  if(running && !paused){
+    spawnTimer += dt;
+
+    // ✅ 계속 스폰: 1.1초마다 하나씩(원하면 조절 가능)
+    if(spawnTimer >= 1.1){
+      spawnTimer = 0;
+      spawnWord();
+    }
+
+    // 이동
+    for(const w of activeWords){
+      w.y += w.speed * dt;
+      w.el.style.top = w.y + 'px';
+    }
+
+    // 바닥 처리
+    const floorY = 440 - 54 - 28;
+    const hit = activeWords.filter(w => w.y >= floorY);
+    if(hit.length){
+      for(const w of hit){
+        removeWord(w);
+        resetInput();
+        loseLife();
+      }
+      renderTyping('바닥 도착! 라이프 -1');
+    }
+  }
+
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+/**
+ * 입력 규칙(타자 느낌):
+ * - F/D/S/J/K/L 누르는 동안 heldDots 누적
+ * - 키를 모두 떼는 순간 => bits 확정 => inputCells에 push
+ * - Enter => 채점(가장 아래 단어)
+ * - Backspace => 마지막 셀 삭제
+ */
+window.addEventListener('keydown', (e) => {
+  const k = e.key.toLowerCase();
+
+  if(k === ' '){ e.preventDefault(); togglePause(); return; }
+  if(k === 'enter'){ e.preventDefault(); judge(); return; }
+
+  if(k === 'backspace'){
+    e.preventDefault();
+    inputCells.pop();
+    renderTyping('마지막 글자 삭제됨.');
+    return;
+  }
+
+  if(KEY_TO_DOT[k]){
+    e.preventDefault();
+    heldKeys.add(k);
+    heldDots.add(KEY_TO_DOT[k]);
+    renderHeldDots();
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  const k = e.key.toLowerCase();
+  if(KEY_TO_DOT[k]){
+    e.preventDefault();
+    heldKeys.delete(k);
+
+    // ✅ 키를 모두 떼는 순간 1셀 확정 (이게 타자 느낌 + 진행도 표시의 핵심)
+    if(heldKeys.size === 0){
+      const bits = bitsFromDots(heldDots);
+      if(bits !== '000000'){
+        inputCells.push(bits);
+      }
+      heldDots.clear();
+      renderHeldDots();
+      renderTyping();
+    }
+  }
+});
+
+startBtn.addEventListener('click', () => {
+  if(!running){
+    running = true;
+    paused = false;
+    spawnTimer = 0;
+    // 시작하자마자 1개 뿌리기
+    if(activeWords.length === 0) spawnWord();
+  } else {
+    paused = false;
+  }
+  renderTyping();
+});
+
+resetBtn.addEventListener('click', () => {
+  running = false;
+  paused = false;
+  score = 0; combo = 0; life = 3;
+  setHud();
+  resetInput();
+  for(const w of [...activeWords]) removeWord(w);
+  activeWords = [];
+  spawnTimer = 0;
+  laneEl.innerHTML = '';
+  renderTyping('리셋 완료.');
+});
+
+applyDataBtn.addEventListener('click', () => {
+  try{
+    const obj = JSON.parse(dataArea.value);
+
+    for(const [w, v] of Object.entries(obj)){
+      if(typeof w !== 'string' || !w.trim()) throw new Error('단어 키가 비었어.');
+      if(typeof v !== 'string') throw new Error(`"${w}"의 값은 문자열이어야 해.`);
+      const cells = parseAnswerCells(v);
+      if(cells.length === 0) throw new Error(`"${w}" 값이 비어있어.`);
+      for(const c of cells){
+        if(!/^[01]{6}$/.test(c)) throw new Error(`"${w}"에 6비트(0/1) 형식이 아닌 셀이 있어: ${c}`);
+      }
+    }
+
+    WORD_DB = obj;
+    dataMsg.textContent = '적용 완료!';
+    setTimeout(()=>dataMsg.textContent='', 1200);
+    renderTyping('데이터 적용됨.');
+  } catch(err){
+    dataMsg.textContent = '오류: ' + err.message;
+  }
+});
+
+// 초기
+setHud();
+renderHeldDots();
+renderTyping();
+</script>
+</body>
+</html>
