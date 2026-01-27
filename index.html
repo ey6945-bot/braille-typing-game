@@ -564,8 +564,20 @@ function cellsToHangul(cellsString){
     return code >= 0xAC00 && code <= 0xD7A3;
   };
 
+const ABBREV_BY_CELL = {};
+for (const item of BANK["약자"]) {
+  ABBREV_BY_CELL[normCells(item.cells)] = item.text;
+}
+
   for (let i = 0; i < cells.length; i++) {
     const cell = cells[i];
+    
+    // 0️⃣ 약자 우선 처리 (단어/약자 카테고리)
+if (ABBREV_BY_CELL[cell]) {
+  result.push(ABBREV_BY_CELL[cell]);
+  lastCho = null;
+  continue;
+}
 
     // 1) ✅ 000001 처리: "된소리표"일 수도 있고, 그냥 "ㅅ"일 수도 있음
     if (cell === "000001") {
