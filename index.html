@@ -556,25 +556,37 @@ function cellsToHangul(cellsString){
   let lastCho = null;
   let tensePending = false;
 
-  for (const cell of cells) {
+for (let i = 0; i < cells.length; i++) {
+  const cell = cells[i];
+  const nextCell = cells[i + 1];
 
-    // 1️⃣ 된소리표
-    if (cell === "000001") {
+  // 1️⃣ 000001 처리: "다음이 ㄱ/ㄷ/ㅂ/ㅅ/ㅈ(초성)"이면 된소리표
+  if (cell === "000001") {
+    const nextCho = CHO_BY_CELL[nextCell]; // 다음 셀이 초성이면 글자 나옴
+    if (nextCho && TENSE[nextCho]) {
+      // ✅ 된소리표로 확정: 이번 셀은 출력 안 하고, 다음 초성을 된소리로 바꿈
       tensePending = true;
       continue;
-    }
-
-    // 2️⃣ 초성
-    if (CHO_BY_CELL[cell]) {
-      let cho = CHO_BY_CELL[cell];
-      if (tensePending && TENSE[cho]) {
-        cho = TENSE[cho];
-        tensePending = false;
-      }
-      lastCho = cho;
-      result.push(cho);
+    } else {
+      // ✅ 된소리 조합 불가: 그냥 "초성 ㅅ"으로 출력
+      lastCho = "ㅅ";
+      result.push("ㅅ");
+      tensePending = false; // 혹시 남아있을까봐 안전하게 초기화
       continue;
     }
+  }
+
+  // 2️⃣ 초성
+  if (CHO_BY_CELL[cell]) {
+    let cho = CHO_BY_CELL[cell];
+    if (tensePending && TENSE[cho]) {
+      cho = TENSE[cho];
+      tensePending = false;
+    }
+    lastCho = cho;
+    result.push(cho);
+    continue;
+  }
 
     // 3️⃣ 모음
     if (VOWEL_BY_CELL[cell]) {
