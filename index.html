@@ -575,11 +575,10 @@ const WORD_ABBREV = {
   "100000 101001": "그리고",
 };
 
-  let result = [];
-  let lastCho = null; // 직전에 입력된 초성(아직 모음과 결합 전)
-  let numberMode = false;
-  let englishMode = false;
-  let capitalNext = false;
+let result = [];
+let lastCho = null;
+let numberMode = false;
+let englishMode = null;  // null | "lower" | "upper"
 
   const isHangulSyllable = (ch) => {
     const code = ch.charCodeAt(0);
@@ -608,6 +607,112 @@ for (const item of BANK["영어"]) {
 
   for (let i = 0; i < cells.length; i++) {
     const cell = cells[i];
+
+// ===================================================
+// 0️⃣ 표 기반 묶음 처리 (한글보다 우선)
+// ===================================================
+
+// ① 단위표 / 로마자표 (001011)
+if (cell === "001011") {
+  const n1 = cells[i + 1];
+  const n2 = cells[i + 2];
+  const n3 = cells[i + 3];
+
+  // % : 001011 111100
+  if (n1 === "111100") {
+    result.push("%");
+    i += 1;
+    lastCho = null;
+    continue;
+  }
+
+  // ℃ : 001011 100110 000001 100100
+  if (n1 === "100110" && n2 === "000001" && n3 === "100100") {
+    result.push("℃");
+    i += 3;
+    lastCho = null;
+    continue;
+  }
+
+  // ° : 001011 100110
+  if (n1 === "100110") {
+    result.push("°");
+    i += 1;
+    lastCho = null;
+    continue;
+  }
+
+  // 🔹 소문자 영어 로마자 모드 시작
+  englishMode = "lower";
+  continue;
+}
+
+// ② 수표 (001111)
+if (cell === "001111") {
+  numberMode = true;
+  continue;
+}
+
+// ===================================================
+// 0-1️⃣ 숫자 모드
+// ===================================================
+if (numberMode) {
+  const NUM = {
+    "100000":"1","110000":"2","100100":"3","100110":"4","100010":"5",
+    "110100":"6","110110":"7","110010":"8","010100":"9","010110":"0",
+  };
+
+  if (NUM[cell]) {
+    result.push(NUM[cell]);
+    continue;
+  }
+
+  // 숫자 아닌 게 나오면 종료
+  numberMode = false;
+}
+
+// ===================================================
+// 0-2️⃣ 영어 모드
+// ===================================================
+// ==========================
+// 0-2) 영어/로마자 "표" (진입)
+// ==========================
+
+// 대문자 단어표: 000001 000001
+if (cell === "000001" && cells[i + 1] === "000001") {
+  englishMode = "upper";
+  i++;          // 두 번째 000001 소비
+  continue;
+}
+
+// 로마자표: 001011
+if (cell === "001011") {
+  englishMode = "lower";
+  continue;
+}
+
+if (englishMode) {
+  // 종료표
+  if (cell === "010011") {
+    englishMode = null;
+    continue;
+  }
+
+  const ENG = {
+    "100000":"a","110000":"b","100100":"c","100110":"d","100010":"e",
+    "110100":"f","110110":"g","110010":"h","010100":"i","010110":"j",
+    "101000":"k","111000":"l","101100":"m","101110":"n","101010":"o",
+    "111100":"p","111110":"q","111010":"r","011100":"s","011110":"t",
+    "101001":"u","111001":"v","010111":"w","101101":"x","101111":"y","101011":"z"
+  };
+
+  if (ENG[cell]) {
+    result.push(
+      englishMode === "upper" ? ENG[cell].toUpperCase() : ENG[cell]
+    );
+    continue;
+  }
+}
 
 // 0-1️⃣ 기호
 if (SYMBOL_BY_CELL[cell]) {
@@ -797,13 +902,12 @@ if (CHO_BY_CELL[cell]) {
   const cho = CHO_BY_CELL[cell];
   const nextCell = cells[i + 1];
 
-// 2️⃣ 초성 처리
-if (CHO_BY_CELL[cell]) {
-  const cho = CHO_BY_CELL[cell];
-  lastCho = cho;
-  result.push(cho);
-  continue;
-}
+  // 🔹 다음 셀이 "모음이 아니면" → 약자로 처리
+  if (!VOWEL_BY_CELL[nextCell] && ABBREV_BY_CELL[cell]) {
+    result.push(ABBREV_BY_CELL[cell]); // 예: "자"
+    lastCho = null;
+    continue;
+  }
 
   // 🔹 기본: 초성으로 처리
   lastCho = cho;
