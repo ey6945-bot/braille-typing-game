@@ -526,51 +526,88 @@ function normCells(s){
     .replace(/\s+/g, " ")
     .replace(/[^01 ]/g, "");
 }
-// =========================
-// 셀열 → 한글 해석(현재 카테고리 기준)
-// =========================
 function cellsToHangul(cellsString){
   const cells = normCells(cellsString).split(" ").filter(Boolean);
   if (cells.length === 0) return "";
 
-  const dict = BANK[state.category] || [];
-  const oneCellLookup = (cell) => {
-    const found = dict.find(item => normCells(item.cells) === cell);
-    return found ? found.text : "□";
+  // ===== 한글 조합 테이블 =====
+  const CHO = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+  const JUNG = ["ㅏ","ㅐ","ㅑ","ㅒ","ㅓ","ㅔ","ㅕ","ㅖ","ㅗ","ㅘ","ㅙ","ㅚ","ㅛ","ㅜ","ㅝ","ㅞ","ㅟ","ㅠ","ㅡ","ㅢ","ㅣ"];
+
+  // 초성/모음 매핑 (점자 변환기 기준)
+  const CHO_BY_CELL = {
+    "000100":"ㄱ","010100":"ㄷ","000110":"ㅂ","000001":"ㅅ","000101":"ㅈ",
+    "100100":"ㄴ","000010":"ㄹ","100010":"ㅁ","000011":"ㅊ",
+    "110100":"ㅋ","110010":"ㅌ","100110":"ㅍ","010110":"ㅎ"
   };
 
-  // 된소리 조합: 000001 + (초성 ㄱ/ㄷ/ㅂ/ㅅ/ㅈ) => ㄲ/ㄸ/ㅃ/ㅆ/ㅉ
-  // (부호/따옴표 같은 데서 000001이 섞이면 오작동할 수 있어서 초성/단어에서만 적용)
-  const allowTense = (state.category === "초성" || state.category === "단어");
-  const TENSE_MAP = {
-    "000100": "ㄲ", // ㄱ
-    "010100": "ㄸ", // ㄷ
-    "000110": "ㅃ", // ㅂ
-    "000001": "ㅆ", // ㅅ
-    "000101": "ㅉ", // ㅈ
+  const VOWEL_BY_CELL = {
+    "110001":"ㅏ","001110":"ㅑ","011100":"ㅓ","100011":"ㅕ",
+    "101001":"ㅗ","001101":"ㅛ","101100":"ㅜ","100101":"ㅠ",
+    "010101":"ㅡ","101010":"ㅣ"
+  };
+
+  // 된소리
+  const TENSE = {
+    "ㄱ":"ㄲ","ㄷ":"ㄸ","ㅂ":"ㅃ","ㅅ":"ㅆ","ㅈ":"ㅉ"
   };
 
   let result = [];
-  for (let i = 0; i < cells.length; i++) {
-    const cur = cells[i];
-    const next = cells[i + 1];
+  let lastCho = null;
+  let tensePending = false;
 
-    if (allowTense && cur === "000001" && next && TENSE_MAP[next]) {
-      // 000001 자체를 'ㅅ'으로 출력하지 않고, 다음 초성과 합쳐서 된소리로 표시
-      result.push(TENSE_MAP[next]);
-      i++; // next까지 소비
+  for (const cell of cells) {
+
+    // 1️⃣ 된소리표
+    if (cell === "000001") {
+      tensePending = true;
       continue;
     }
 
-    result.push(oneCellLookup(cur));
+    // 2️⃣ 초성
+    if (CHO_BY_CELL[cell]) {
+      let cho = CHO_BY_CELL[cell];
+      if (tensePending && TENSE[cho]) {
+        cho = TENSE[cho];
+        tensePending = false;
+      }
+      lastCho = cho;
+      result.push(cho);
+      continue;
+    }
+
+    // 3️⃣ 모음
+    if (VOWEL_BY_CELL[cell]) {
+      const vowel = VOWEL_BY_CELL[cell];
+
+      if (lastCho !== null) {
+        // 초성 + 모음 → 음절 완성
+        const code =
+          0xAC00 +
+          CHO.indexOf(lastCho) * 21 * 28 +
+          JUNG.indexOf(vowel) * 28;
+
+        result[result.length - 1] = String.fromCharCode(code);
+        lastCho = null;
+      } else {
+        // 모음 단독 → ㅇ 자동 보충
+        const code =
+          0xAC00 +
+          CHO.indexOf("ㅇ") * 21 * 28 +
+          JUNG.indexOf(vowel) * 28;
+
+        result.push(String.fromCharCode(code));
+      }
+      continue;
+    }
+
+    // 4️⃣ 알 수 없는 셀
+    result.push("□");
   }
 
   return result.join("");
 }
 
-/** =========================
- * 점자(6점) 렌더
- * ========================= */
 function renderBraille(cellsString){
   const wrap = UI.braillePreview;
   wrap.innerHTML = "";
