@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="ko">
 <head>
@@ -554,6 +555,26 @@ function cellsToHangul(cellsString){
   // 된소리: 000001 + (ㄱ/ㄷ/ㅂ/ㅅ/ㅈ) => ㄲ/ㄸ/ㅃ/ㅆ/ㅉ
   const TENSE_TARGET = { "ㄱ":"ㄲ","ㄷ":"ㄸ","ㅂ":"ㅃ","ㅅ":"ㅆ","ㅈ":"ㅉ" };
 
+  // ===== 약자/단어 분해 테이블 =====
+
+// 3️⃣ 음절 약자 (앞에 초성 오면 결합)
+const SYLLABLE_ABBREV = {
+  "100111":"억","011111":"언","011110":"얼","100001":"연","110011":"열",
+  "110111":"영","101101":"옥","111011":"온","111111":"옹","110110":"운",
+  "111101":"울","101011":"은","011101":"을","111110":"인",
+};
+
+// 1️⃣ 고정 2셀 단어 약자
+const WORD_ABBREV = {
+  "000111 011100": "것",
+  "100000 011100": "그래서",
+  "100000 100100": "그러나",
+  "100000 010010": "그러면",
+  "100000 010001": "그러므로",
+  "100000 101110": "그런데",
+  "100000 101001": "그리고",
+};
+
   let result = [];
   let lastCho = null; // 직전에 입력된 초성(아직 모음과 결합 전)
   let numberMode = false;
@@ -666,17 +687,98 @@ if (englishMode) {
       continue;
     }
 
+    // 1-6) ✅ 억/언/얼/연/열/영/… 약자 처리
+const SYLLABLE_ABBREV = {
+  "100111": { vowel: "ㅓ", jong: "ㄱ" }, // 억
+  "011111": { vowel: "ㅓ", jong: "ㄴ" }, // 언
+  "011110": { vowel: "ㅓ", jong: "ㄹ" }, // 얼
+  "100001": { vowel: "ㅕ", jong: "ㄴ" }, // 연
+  "110011": { vowel: "ㅕ", jong: "ㄹ" }, // 열
+  "110111": { vowel: "ㅕ", jong: "ㅇ" }, // 영
+  "101101": { vowel: "ㅗ", jong: "ㄱ" }, // 옥
+  "111011": { vowel: "ㅗ", jong: "ㄴ" }, // 온
+  "111111": { vowel: "ㅗ", jong: "ㅇ" }, // 옹
+  "110110": { vowel: "ㅜ", jong: "ㄴ" }, // 운
+  "111101": { vowel: "ㅜ", jong: "ㄹ" }, // 울
+  "101011": { vowel: "ㅡ", jong: "ㄴ" }, // 은
+  "011101": { vowel: "ㅡ", jong: "ㄹ" }, // 을
+  "111110": { vowel: "ㅣ", jong: "ㄴ" }, // 인
+};
+
+if (SYLLABLE_ABBREV[cell]) {
+  const { vowel, jong } = SYLLABLE_ABBREV[cell];
+
+  // 🔹 앞에 초성이 있으면 → 결합
+  if (lastCho !== null) {
+    const code =
+      0xAC00 +
+      CHO.indexOf(lastCho) * 21 * 28 +
+      JUNG.indexOf(vowel) * 28 +
+      JONG.indexOf(jong);
+
+    result[result.length - 1] = String.fromCharCode(code);
+    lastCho = null;
+    continue;
+  }
+
+  // 🔹 앞에 초성이 없으면 → 그대로 출력
+  const code =
+    0xAC00 +
+    CHO.indexOf("ㅇ") * 21 * 28 +
+    JUNG.indexOf(vowel) * 28 +
+    JONG.indexOf(jong);
+
+  result.push(String.fromCharCode(code));
+  continue;
+}
+
+    // 1-5) ✅ 001100 처리: 뒤에 모음이면 초성 'ㅆ', 아니면 모음 'ㅖ'
+if (cell === "001100") {
+  const nextCell = cells[i + 1];
+
+  // ✅ 뒤에 모음이 오면: 초성 ㅆ
+  if (nextCell && VOWEL_BY_CELL[nextCell]) {
+    lastCho = "ㅆ";
+    result.push("ㅆ");
+    continue;
+  }
+
+  // ✅ 뒤에 모음이 안 오면: 모음 ㅖ 로 간주
+  // (직접 합성하지 말고, "모음 처리 블록"에서 처리되게끔)
+  // → 여기서는 cell을 모음으로 인식시키기 위해 강제로 vowel로 처리
+  const vowel = "ㅖ";
+
+  if (lastCho !== null) {
+    const code =
+      0xAC00 +
+      CHO.indexOf(lastCho) * 21 * 28 +
+      JUNG.indexOf(vowel) * 28;
+
+    result[result.length - 1] = String.fromCharCode(code);
+    lastCho = null;
+  } else {
+    const code =
+      0xAC00 +
+      CHO.indexOf("ㅇ") * 21 * 28 +
+      JUNG.indexOf(vowel) * 28;
+
+    result.push(String.fromCharCode(code));
+  }
+  continue;
+}
+
 // 2️⃣ 초성 / 초성 약자 처리
 if (CHO_BY_CELL[cell]) {
   const cho = CHO_BY_CELL[cell];
   const nextCell = cells[i + 1];
 
-  // 🔹 다음 셀이 "모음이 아니면" → 약자로 처리
-  if (!VOWEL_BY_CELL[nextCell] && ABBREV_BY_CELL[cell]) {
-    result.push(ABBREV_BY_CELL[cell]); // 예: "자"
-    lastCho = null;
-    continue;
-  }
+// 2️⃣ 초성 처리
+if (CHO_BY_CELL[cell]) {
+  const cho = CHO_BY_CELL[cell];
+  lastCho = cho;
+  result.push(cho);
+  continue;
+}
 
   // 🔹 기본: 초성으로 처리
   lastCho = cho;
