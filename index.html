@@ -534,11 +534,35 @@ function cellsToHangul(cellsString){
   if (cells.length === 0) return "";
 
   const dict = BANK[state.category] || [];
-  let result = [];
-
-  for (const cell of cells) {
+  const oneCellLookup = (cell) => {
     const found = dict.find(item => normCells(item.cells) === cell);
-    result.push(found ? found.text : "□"); // 못 찾으면 □
+    return found ? found.text : "□";
+  };
+
+  // 된소리 조합: 000001 + (초성 ㄱ/ㄷ/ㅂ/ㅅ/ㅈ) => ㄲ/ㄸ/ㅃ/ㅆ/ㅉ
+  // (부호/따옴표 같은 데서 000001이 섞이면 오작동할 수 있어서 초성/단어에서만 적용)
+  const allowTense = (state.category === "초성" || state.category === "단어");
+  const TENSE_MAP = {
+    "000100": "ㄲ", // ㄱ
+    "010100": "ㄸ", // ㄷ
+    "000110": "ㅃ", // ㅂ
+    "000001": "ㅆ", // ㅅ
+    "000101": "ㅉ", // ㅈ
+  };
+
+  let result = [];
+  for (let i = 0; i < cells.length; i++) {
+    const cur = cells[i];
+    const next = cells[i + 1];
+
+    if (allowTense && cur === "000001" && next && TENSE_MAP[next]) {
+      // 000001 자체를 'ㅅ'으로 출력하지 않고, 다음 초성과 합쳐서 된소리로 표시
+      result.push(TENSE_MAP[next]);
+      i++; // next까지 소비
+      continue;
+    }
+
+    result.push(oneCellLookup(cur));
   }
 
   return result.join("");
