@@ -5,547 +5,840 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>점자 타자 게임</title>
   <style>
-    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif; }
-    body { margin:0; background:#0b0f17; color:#eaf0ff; }
-    header{ padding:14px; border-bottom:1px solid rgba(255,255,255,.10); display:flex; gap:10px; flex-wrap:wrap; }
-    .pill{ background:rgba(255,255,255,.08); padding:6px 10px; border-radius:999px; font-size:12px; }
-    main{ display:grid; grid-template-columns: 1.25fr .75fr; gap:14px; padding:14px; }
-    @media (max-width: 900px){ main{ grid-template-columns:1fr; } }
-    .card{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10); border-radius:16px; overflow:hidden; }
-    .card h2{ margin:0; padding:12px 14px; font-size:14px; border-bottom:1px solid rgba(255,255,255,.10); }
-    .content{ padding:14px; }
-    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    :root{
+      --bg:#0b0f17; --panel:rgba(255,255,255,.06); --line:rgba(255,255,255,.12);
+      --text:#eaf0ff; --muted:rgba(234,240,255,.72);
+      --ok:#6ee7b7; --warn:#fbbf24; --bad:#fb7185;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",sans-serif;}
+    header{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .wrap{max-width:1100px;margin:0 auto;padding:14px;display:grid;gap:14px}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+    .card h2{margin:0;padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px}
+    .content{padding:12px}
     .btn{
-      cursor:pointer; border:1px solid rgba(255,255,255,.18);
-      background:rgba(255,255,255,.10); color:#eaf0ff;
-      padding:10px 12px; border-radius:12px; font-weight:800;
+      cursor:pointer; user-select:none;
+      padding:10px 14px; border-radius:12px; font-weight:900;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.10); color:var(--text);
     }
-    .btn.primary{ background: rgba(110,231,183,.18); border-color: rgba(110,231,183,.35); }
-    select, input[type="range"]{
-      background: rgba(0,0,0,.25);
-      color:#eaf0ff;
-      border:1px solid rgba(255,255,255,.16);
-      border-radius: 10px;
-      padding:6px 8px;
-    }
-    #gameWrap{ position:relative; height:440px; background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border-radius:16px; overflow:hidden;}
-    #lane{ position:absolute; inset:0; }
-    .word{
-      position:absolute; left:50%; transform:translateX(-50%);
-      padding:8px 12px; border-radius:999px;
-      background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.14);
-      font-weight:900; letter-spacing:.5px; user-select:none; white-space:nowrap;
-      backdrop-filter: blur(6px);
+    .btn.primary{background:rgba(110,231,183,.18);border-color:rgba(110,231,183,.35)}
+    .btn.danger{background:rgba(251,113,133,.14);border-color:rgba(251,113,133,.35)}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+    .pill{padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:rgba(0,0,0,.18);font-weight:800}
+    .muted{color:var(--muted);font-size:12px;line-height:1.45}
+    .ok{color:var(--ok);font-weight:900}
+    .warn{color:var(--warn);font-weight:900}
+    .bad{color:var(--bad);font-weight:900}
+
+    /* Game area */
+    #gameBox{
+      position:relative; height:420px; border-radius:16px; overflow:hidden;
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border:1px solid var(--line);
     }
     #floor{
-      position:absolute; left:0; right:0; bottom:0; height:54px;
-      border-top:1px dashed rgba(255,255,255,.20);
-      display:flex; align-items:center; justify-content:center;
-      font-size:12px; color:rgba(234,240,255,.7); background:rgba(0,0,0,.15);
+      position:absolute; left:0; right:0; bottom:0; height:40px;
+      border-top:1px dashed rgba(255,255,255,.22);
+      background:rgba(0,0,0,.18);
+      display:flex; align-items:center; justify-content:space-between; padding:0 10px;
     }
-    .monoBox{
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
-      background: rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.10);
-      padding:10px 12px; border-radius: 12px; width:100%; box-sizing:border-box;
-      line-height:1.5; font-size:12px;
+    #falling{
+      position:absolute; left:50%; transform:translateX(-50%);
+      top:16px;
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(0,0,0,.20);
+      font-weight:900;
+      min-width:120px;
+      text-align:center;
+      pointer-events:none;
+      white-space:nowrap;
     }
-    .brailleGrid{ display:grid; grid-template-columns: repeat(2, 22px); grid-template-rows: repeat(3, 22px); gap:8px; }
-    .dot{ width:22px; height:22px; border-radius:999px; border:1px solid rgba(255,255,255,.20); background: rgba(255,255,255,.06); }
-    .dot.on{ background: rgba(96,165,250,.55); border-color: rgba(96,165,250,.75); }
-    textarea{
-      width:100%; min-height: 240px; resize: vertical;
-      border-radius:12px; border:1px solid rgba(255,255,255,.12);
-      background: rgba(0,0,0,.25); color:#eaf0ff; padding:10px 12px; box-sizing:border-box;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
-      font-size:12px;
+    #falling small{display:block;font-weight:700;color:var(--muted);margin-top:4px}
+
+    /* Input & braille preview */
+    #typedRaw{
+      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      background:rgba(0,0,0,.25);
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:12px;
+      padding:10px 12px;
+      width:100%;
+      color:var(--text);
+      min-height:42px;
+      white-space:pre-wrap;
     }
-    .hint{ color: rgba(234,240,255,.72); font-size:12px; line-height:1.5; margin-top:10px; }
-    .ok{ color: rgba(110,231,183,.95); }
-    .warn{ color: rgba(251,191,36,.95); }
+    .brailleRow{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+    .cell{
+      width:30px;height:44px;border-radius:10px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(0,0,0,.22);
+      display:grid;grid-template-columns:repeat(2, 1fr);
+      grid-template-rows:repeat(3, 1fr);
+      padding:6px;gap:4px;
+    }
+    .dot{
+      border-radius:999px;border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.06);
+    }
+    .dot.on{background:rgba(234,240,255,.9)}
+
+    /* Modal */
+    .overlay{
+      position:fixed; inset:0; background:rgba(0,0,0,.55);
+      display:none; align-items:center; justify-content:center; padding:18px;
+    }
+    .overlay.show{display:flex}
+    .modal{
+      width:min(820px, 100%);
+      background:rgba(15,20,35,.98);
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:18px;
+      overflow:hidden;
+    }
+    .modal header{border-bottom:1px solid rgba(255,255,255,.12)}
+    .grid{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
+    @media (max-width:620px){ .grid{grid-template-columns:1fr} }
+    .slider{display:flex;align-items:center;gap:10px}
+    input[type="range"]{width:240px}
   </style>
 </head>
 <body>
+
 <header>
-  <div class="pill">입력키: 1~6점 = F D S / J K L</div>
-  <div class="pill">셀 확정: 키를 모두 떼면 1셀 입력</div>
-  <div class="pill">채점: Enter (가장 아래 단어)</div>
-  <div class="pill">삭제: Backspace</div>
-  <div class="pill">일시정지: Space</div>
+  <div class="row">
+    <div class="pill" id="modePill">모드: -</div>
+    <div class="pill" id="catPill">카테고리: -</div>
+    <div class="pill">점수: <span id="score">0</span></div>
+    <div class="pill" id="levelWrap" style="display:none">단계: <span id="level">1</span></div>
+    <div class="pill" id="heartsWrap" style="display:none">♥ <span id="hearts">5</span></div>
+  </div>
+  <div class="row">
+    <button class="btn" id="openMenuBtn">메뉴</button>
+    <button class="btn danger" id="resetBtn">리셋</button>
+  </div>
 </header>
 
-<main>
-  <section class="card">
+<div class="wrap">
+  <div class="card">
     <h2>게임</h2>
     <div class="content">
-      <div class="row" style="justify-content:space-between; margin-bottom:10px;">
-        <div class="pill">
-          점수: <b id="score">0</b> /
-          콤보: <b id="combo">0</b> /
-          라이프: <b id="life">3</b>
+      <div id="gameBox" aria-label="게임 화면">
+        <div id="falling">
+          <div id="fallText">-</div>
+          <small id="fallHint">Space/Enter로 제출</small>
         </div>
-        <div class="row">
-          <button class="btn primary" id="startBtn">시작</button>
-          <button class="btn" id="resetBtn">리셋</button>
+        <div id="floor">
+          <div class="muted">바닥 도착 = 실패</div>
+          <div class="muted">입력: 0/1, 백스페이스, Space/Enter(제출)</div>
         </div>
       </div>
 
-      <div class="row" style="justify-content:space-between; margin:10px 0 12px;">
-        <div class="row">
-          <label class="pill">모드
-            <select id="modeSel" style="margin-left:8px;">
-              <option value="game" selected>게임</option>
-              <option value="practice">연습</option>
-            </select>
-          </label>
-          <label class="pill">난이도
-            <select id="diffSel" style="margin-left:8px;">
-              <option value="easy">쉬움</option>
-              <option value="normal" selected>보통</option>
-              <option value="hard">어려움</option>
-            </select>
-          </label>
+      <div class="row" style="margin-top:12px">
+        <div style="flex:1;min-width:260px">
+          <div class="muted">입력한 셀열(원문) — 6자리마다 자동으로 셀이 나뉘어</div>
+          <div id="typedRaw"> </div>
+          <div class="muted" style="margin-top:8px">입력한 점자(미리보기)</div>
+          <div id="braillePreview" class="brailleRow" aria-label="점자 미리보기"></div>
         </div>
-        <label class="pill">속도
-          <input id="speedRange" type="range" min="0.6" max="2.2" step="0.1" value="1.0" style="vertical-align:middle; width:160px; margin:0 8px;">
-          <b id="speedLabel">x1.0</b>
-        </label>
+
+        <div style="min-width:280px;flex:0 0 320px">
+          <div class="card" style="margin:0">
+            <h2>설정</h2>
+            <div class="content">
+              <div class="muted">연습 모드에서만 속도 조절 가능</div>
+              <div class="slider" style="margin-top:10px">
+                <span class="pill">속도</span>
+                <input id="speedRange" type="range" min="30" max="220" value="90" />
+                <span class="pill" id="speedVal">90</span>
+              </div>
+              <div class="muted" style="margin-top:10px">
+                * 게임 모드에서는 단계가 오를 때 자동으로 빨라짐
+              </div>
+              <div class="row" style="margin-top:10px">
+                <button class="btn primary" id="startBtn">시작</button>
+                <button class="btn" id="stopBtn">정지</button>
+              </div>
+              <div class="muted" style="margin-top:10px">
+                제출 키: <b>Space 또는 Enter</b>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div id="gameWrap">
-        <div id="lane"></div>
-        <div id="floor">바닥 도착 = (게임모드) 라이프 -1</div>
-      </div>
-
-      <div style="margin-top:12px;">
-        <div class="monoBox" id="typingBox"></div>
-      </div>
     </div>
-  </section>
+  </div>
+</div>
 
-  <section class="card">
-    <h2>입력 상태 / 문제 데이터</h2>
+<!-- Menu Modal -->
+<div class="overlay" id="menuOverlay">
+  <div class="modal">
+    <header>
+      <div style="font-weight:950">메뉴</div>
+      <button class="btn" id="closeMenuBtn">닫기</button>
+    </header>
     <div class="content">
-      <div class="pill">현재 누르고 있는 점(셀)</div>
-
-      <div class="row" style="margin-top:10px; gap:14px;">
-        <div class="brailleGrid" id="dots">
-          <div class="dot" data-dot="1"></div>
-          <div class="dot" data-dot="4"></div>
-          <div class="dot" data-dot="2"></div>
-          <div class="dot" data-dot="5"></div>
-          <div class="dot" data-dot="3"></div>
-          <div class="dot" data-dot="6"></div>
+      <div class="card" style="margin:0 0 12px 0">
+        <h2>1) 모드 선택</h2>
+        <div class="content">
+          <div class="grid">
+            <button class="btn primary" id="pickPractice">
+              연습 모드<br/><span class="muted">속도 조절 가능 / 맞으면 +, 놓치면 -</span>
+            </button>
+            <button class="btn primary" id="pickGame">
+              게임 모드<br/><span class="muted">단계 상승 / 하트 5개 / 게임오버</span>
+            </button>
+          </div>
         </div>
-        <div class="pill">현재 셀(1→6): <b id="cellBits">000000</b></div>
       </div>
 
-      <div class="hint">
-        <b>문제 데이터(JSON)</b><br/>
-        키=단어, 값=6비트 셀열(공백으로 구분).<br/>
-        예: <code>"그림자": "000100 111000 001010 ..."</code><br/>
-        (여기 데이터는 네가 만든 표 기준으로 넣으면 됨)
-      </div>
-
-      <textarea id="dataArea"></textarea>
-      <div class="row" style="margin-top:10px;">
-        <button class="btn" id="applyDataBtn">데이터 적용</button>
-        <span class="hint warn" id="dataMsg"></span>
+      <div class="card" style="margin:0">
+        <h2>2) 카테고리 선택 (연습/게임 공통)</h2>
+        <div class="content">
+          <div class="grid" id="catGrid"></div>
+          <div class="muted" style="margin-top:10px">
+            카테고리 선택 후 <b>시작</b>을 누르면 시작돼.
+          </div>
+        </div>
       </div>
     </div>
-  </section>
-</main>
+  </div>
+</div>
+
+<!-- Game Over Modal -->
+<div class="overlay" id="overOverlay">
+  <div class="modal">
+    <header>
+      <div style="font-weight:950">게임 오버</div>
+      <button class="btn" id="closeOverBtn">닫기</button>
+    </header>
+    <div class="content">
+      <div class="mono">이번 게임 점수: <span class="ok" id="finalScore">0</span></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" id="retryBtn">다시하기 (1단계)</button>
+        <button class="btn" id="backToMenuBtn">메뉴로</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
-/** 키 -> 점 매핑 */
-const KEY_TO_DOT = { 'f':1, 'd':2, 's':3, 'j':4, 'k':5, 'l':6 };
+/** =========================
+ * 카테고리
+ * ========================= */
+const CATEGORIES = ["초성","종성","모음","약자","부호","숫자","영어","단어"];
 
-let running = false;
-let paused = false;
+/** =========================
+ * 문제 데이터 (너가 준 표 그대로 반영)
+ * cells는 "셀열" 문자열
+ * ========================= */
+const BANK = {
+  "초성": [
+    { text:"ㄱ", cells:"000100" },
+    { text:"ㄴ", cells:"100100" },
+    { text:"ㄷ", cells:"010100" },
+    { text:"ㄹ", cells:"000010" },
+    { text:"ㅁ", cells:"100010" },
+    { text:"ㅂ", cells:"000110" },
+    { text:"ㅅ", cells:"000001" },
+    // ㅇ은 초성 생략이라 ‘초성’ 카테고리에서 굳이 안 넣음
+    { text:"ㅈ", cells:"000101" },
+    { text:"ㅊ", cells:"000011" },
+    { text:"ㅋ", cells:"110100" },
+    { text:"ㅌ", cells:"110010" },
+    { text:"ㅍ", cells:"100110" },
+    { text:"ㅎ", cells:"010110" },
+    { text:"ㄲ", cells:"000001 000100" },
+    { text:"ㄸ", cells:"000001 010100" },
+    { text:"ㅃ", cells:"000001 000110" },
+    { text:"ㅆ(초성)", cells:"000001 000001" },
+    { text:"ㅉ", cells:"000001 000101" },
+  ],
+  "종성": [
+    { text:"ㄱ", cells:"100000" },
+    { text:"ㄴ", cells:"010010" },
+    { text:"ㄷ", cells:"001010" },
+    { text:"ㄹ", cells:"010000" },
+    { text:"ㅁ", cells:"010001" },
+    { text:"ㅂ", cells:"110000" },
+    { text:"ㅅ", cells:"001000" },
+    { text:"ㅇ", cells:"011011" },
+    { text:"ㅈ", cells:"101000" },
+    { text:"ㅊ", cells:"011000" },
+    { text:"ㅋ", cells:"011010" },
+    { text:"ㅌ", cells:"011001" },
+    { text:"ㅍ", cells:"010011" },
+    { text:"ㅎ", cells:"001011" },
+  ],
+  "모음": [
+    { text:"ㅏ", cells:"110001" },
+    { text:"ㅑ", cells:"001110" },
+    { text:"ㅓ", cells:"011100" },
+    { text:"ㅕ", cells:"100011" },
+    { text:"ㅗ", cells:"101001" },
+    { text:"ㅛ", cells:"001101" },
+    { text:"ㅜ", cells:"101100" },
+    { text:"ㅠ", cells:"100101" },
+    { text:"ㅡ", cells:"010101" },
+    { text:"ㅣ", cells:"101010" },
+    { text:"ㅐ", cells:"111010" },
+    { text:"ㅔ", cells:"101110" },
+    { text:"ㅚ", cells:"101111" },
+    { text:"ㅘ", cells:"111001" },
+    { text:"ㅝ", cells:"111100" },
+    { text:"ㅢ", cells:"010111" },
+    { text:"ㅖ", cells:"001100" },
+    { text:"ㅟ", cells:"101100 111010" },
+    { text:"ㅒ", cells:"001110 111010" },
+    { text:"ㅙ", cells:"111001 111010" },
+    { text:"ㅞ", cells:"111100 111010" },
+  ],
+  "약자": [
+    { text:"가", cells:"110101" },
+    { text:"나", cells:"010010" },
+    { text:"다", cells:"001010" },
+    { text:"라", cells:"010000" },
+    { text:"마", cells:"010001" },
+    { text:"바", cells:"110000" },
+    { text:"사", cells:"001000" },
+    { text:"아", cells:"011011" },
+    { text:"자", cells:"101000" },
+    { text:"차", cells:"011000" },
+    { text:"카", cells:"011010" },
+    { text:"타", cells:"011001" },
+    { text:"파", cells:"010011" },
+    { text:"하", cells:"001011" },
+    { text:"것", cells:"000111 011100" },
+    { text:"ㅆ", cells:"001100" },
+    { text:"억", cells:"100111" },
+    { text:"언", cells:"011111" },
+    { text:"얼", cells:"011110" },
+    { text:"연", cells:"100001" },
+    { text:"열", cells:"110011" },
+    { text:"영", cells:"110111" },
+    { text:"옥", cells:"101101" },
+    { text:"온", cells:"111011" },
+    { text:"옹", cells:"111111" },
+    { text:"운", cells:"110110" },
+    { text:"울", cells:"111101" },
+    { text:"은", cells:"101011" },
+    { text:"을", cells:"011101" },
+    { text:"인", cells:"111110" },
+    { text:"그래서", cells:"100000 011100" },
+    { text:"그러나", cells:"100000 100100" },
+    { text:"그러면", cells:"100000 010010" },
+    { text:"그러므로", cells:"100000 010001" },
+    { text:"그런데", cells:"100000 101110" },
+    { text:"그리고", cells:"100000 101001" },
+  ],
+  "부호": [
+    { text:".", cells:"010011" },
+    { text:"?", cells:"011001" },
+    { text:"!", cells:"011010" },
+    { text:",", cells:"000010" },
+    { text:"·", cells:"000010 011000" },
+    { text:":", cells:"000010 010000" },
+    { text:";", cells:"000011 011000" },
+    { text:"“", cells:"011001" },
+    { text:"”", cells:"001011" },
+    { text:"‘", cells:"000001 011001" },
+    { text:"’", cells:"001011 001000" },
+    { text:"(", cells:"011001 001000" },
+    { text:")", cells:"000001 001011" },
+    { text:"{", cells:"011001 011000" },
+    { text:"}", cells:"000010 001011" },
+    { text:"[", cells:"011001 011000" },
+    { text:"]", cells:"000011 001011" },
+    { text:"-(붙임표)", cells:"001001" },
+    { text:"-(줄표)", cells:"001001 001001" },
+    { text:"~", cells:"000100 001010" },
+    { text:"｢", cells:"000010 011001" },
+    { text:"｣", cells:"001011 010000" },
+    { text:"『", cells:"000011 011001" },
+    { text:"』", cells:"001011 011000" },
+    { text:"······", cells:"000001 000001 000001" },
+    { text:"……", cells:"010011 010011 010011" },
+    { text:"*", cells:"000010 001010" },
+    { text:"※", cells:"000010 001010" },
 
-let score = 0;
-let combo = 0;
-let life = 3;
+    { text:"단위표", cells:"001011" },
+    { text:"%", cells:"111100" },
+    { text:"℃", cells:"100110 000001 100100" },
+    { text:"°", cells:"100110" },
 
-const laneEl = document.getElementById('lane');
-const scoreEl = document.getElementById('score');
-const comboEl = document.getElementById('combo');
-const lifeEl = document.getElementById('life');
-const typingBox = document.getElementById('typingBox');
-
-const startBtn = document.getElementById('startBtn');
-const resetBtn = document.getElementById('resetBtn');
-
-const dotsEl = document.getElementById('dots');
-const cellBitsEl = document.getElementById('cellBits');
-
-const dataArea = document.getElementById('dataArea');
-const applyDataBtn = document.getElementById('applyDataBtn');
-const dataMsg = document.getElementById('dataMsg');
-
-const modeSel = document.getElementById('modeSel');
-const diffSel = document.getElementById('diffSel');
-const speedRange = document.getElementById('speedRange');
-const speedLabel = document.getElementById('speedLabel');
-
-/** 설정 */
-let SETTINGS = {
-  mode: 'game',          // game | practice
-  difficulty: 'normal',  // easy | normal | hard
-  speedMult: 1.0,
-  spawnInterval: 1.1,
-  baseFall: 70,
-  lives: 3,
-  maxOnScreen: 6
+    { text:",(자릿값)", cells:"010000" },
+    { text:"+", cells:"010001" },
+    { text:"-(연산)", cells:"001010" },
+    { text:"×", cells:"100001" },
+    { text:"÷", cells:"001100 001100" },
+    { text:"=", cells:"010010 010010" },
+    { text:"(. 괄호열)", cells:"011001" },
+    { text:")(. 괄호닫)", cells:"001011" },
+    { text:".(소수점)", cells:"010011" },
+    { text:"-(분수표)", cells:"001100" },
+  ],
+  "숫자": [
+    { text:"수표", cells:"001111" },
+    { text:"1", cells:"100000" },
+    { text:"2", cells:"110000" },
+    { text:"3", cells:"100100" },
+    { text:"4", cells:"100110" },
+    { text:"5", cells:"100010" },
+    { text:"6", cells:"110100" },
+    { text:"7", cells:"110110" },
+    { text:"8", cells:"110010" },
+    { text:"9", cells:"010100" },
+    { text:"0", cells:"010110" },
+  ],
+  "영어": [
+    { text:"로마자표", cells:"001011" },
+    { text:"로마자종료표", cells:"010011" },
+    { text:"대문자기호표", cells:"000001" },
+    { text:"대문자단어표", cells:"000001 000001" },
+    { text:"대문자구절표", cells:"000001 000001 000001" },
+    { text:"대문자종료표", cells:"000001 001000" },
+    { text:"a", cells:"100000" },
+    { text:"b", cells:"110000" },
+    { text:"c", cells:"100100" },
+    { text:"d", cells:"100110" },
+    { text:"e", cells:"100010" },
+    { text:"f", cells:"110100" },
+    { text:"g", cells:"110110" },
+    { text:"h", cells:"110010" },
+    { text:"i", cells:"010100" },
+    { text:"j", cells:"010110" },
+    { text:"k", cells:"101000" },
+    { text:"l", cells:"111000" },
+    { text:"m", cells:"101100" },
+    { text:"n", cells:"101110" },
+    { text:"o", cells:"101010" },
+    { text:"p", cells:"111100" },
+    { text:"q", cells:"111110" },
+    { text:"r", cells:"111010" },
+    { text:"s", cells:"011100" },
+    { text:"t", cells:"011110" },
+    { text:"u", cells:"101001" },
+    { text:"v", cells:"111001" },
+    { text:"w", cells:"010111" },
+    { text:"x", cells:"101101" },
+    { text:"y", cells:"101111" },
+    { text:"z", cells:"101011" },
+  ],
+  "단어": [
+    { text:"바람", cells:"000110 000010 110001 010001" },
+    { text:"구름", cells:"000100 101100 000010 010101 010001" },
+    { text:"연필", cells:"100001 100110 101010 010000" },
+    { text:"노을", cells:"100100 101001 011101" },
+    { text:"고래", cells:"000100 101001 000010 111010" },
+    { text:"별빛", cells:"000110 110001 000110 101010 011000" },
+    { text:"파도", cells:"100110 010100 101001" },
+    { text:"산책", cells:"111000 010010 000011 111010 100000" },
+    { text:"우산", cells:"101100 111000 010010" },
+    { text:"달걀", cells:"010100 010000 000100 001110 010000" },
+    { text:"초록", cells:"000011 101001 000010 101101" },
+    { text:"시간표", cells:"000001 101010 110101 010010 100110 001101" },
+    { text:"바위", cells:"000110 110001 101100 111010" },
+    { text:"종소리", cells:"000101 111111 000001 101001 000010 101010" },
+    { text:"창문", cells:"000011 110001 011011 100010 110110" },
+    { text:"지우개", cells:"000101 101010 101100 000100 111010" },
+    { text:"낙엽", cells:"100100 100000 100011 110000" },
+    { text:"불꽃", cells:"000110 111101 000001 000100 101001 011000" },
+    { text:"지도", cells:"000101 101010 010100 101001" },
+    { text:"열쇠", cells:"110011 000001 101111" },
+    { text:"호수", cells:"010110 101001 000001 101100" },
+    { text:"빙하", cells:"000110 101010 011011 010110" },
+    { text:"기차역", cells:"000100 101010 000011 110001 100011 100000" },
+    { text:"가방끈", cells:"110101 000110 011011 000001 000100 101011" },
+    { text:"소나기", cells:"000001 101001 100100 000100 101010" },
+    { text:"번개", cells:"000110 011111 000100 111010" },
+    { text:"폭풍우", cells:"100110 101101 100110 101100 011011 101100" },
+  ],
 };
 
-function applyPreset(){
-  const d = SETTINGS.difficulty;
-  if(d === 'easy'){
-    SETTINGS.spawnInterval = 1.6;
-    SETTINGS.baseFall = 55;
-    SETTINGS.lives = 5;
-    SETTINGS.maxOnScreen = 4;
-  } else if(d === 'normal'){
-    SETTINGS.spawnInterval = 1.1;
-    SETTINGS.baseFall = 70;
-    SETTINGS.lives = 3;
-    SETTINGS.maxOnScreen = 6;
-  } else {
-    SETTINGS.spawnInterval = 0.8;
-    SETTINGS.baseFall = 90;
-    SETTINGS.lives = 2;
-    SETTINGS.maxOnScreen = 8;
-  }
+/** =========================
+ * 상태
+ * ========================= */
+const state = {
+  mode: null,          // "practice" | "game"
+  category: null,
+  running: false,
+  score: 0,
+  level: 1,
+  hearts: 5,
 
-  if(SETTINGS.mode === 'practice'){
-    life = 999;
-  } else {
-    life = SETTINGS.lives;
-  }
-  setHud();
-}
+  current: null,
+  y: 16,
+  speed: 90,
 
-function syncUI(){
-  speedLabel.textContent = `x${Number(SETTINGS.speedMult).toFixed(1)}`;
-}
-modeSel.addEventListener('change', () => {
-  SETTINGS.mode = modeSel.value;
-  applyPreset();
-  renderTyping('모드 변경됨.');
-});
-diffSel.addEventListener('change', () => {
-  SETTINGS.difficulty = diffSel.value;
-  applyPreset();
-  renderTyping('난이도 적용됨.');
-});
-speedRange.addEventListener('input', () => {
-  SETTINGS.speedMult = Number(speedRange.value);
-  syncUI();
-});
-
-/** 데이터 (기본값 예시 — 네가 적용 버튼으로 바꿀 수 있음) */
-let WORD_DB = {
-  "학교": "010110 000100 000100 000100",
-  "그림자": "000100 010101 000010 101010110 100000 000100 001101010 010001 000101",
-  "연습": "100001 000001 010101 110000",
-  "스불재": "000001 010101 000110 101100 010000 000101 111010", 
-  "게놈": "100001 000001 010101 110000",
-  "이수아": "101010 000001 101100 110001",
-  "제주도민": "000101 101110 000101 101100 010100 101001 100010 101010 010010",
-  "바보": "000110 000110 101001"
+  typed: "",           // "000101 110001" 형식 (자동으로 공백 삽입)
 };
 
-function refreshDataArea(){
-  dataArea.value = JSON.stringify(WORD_DB, null, 2);
-}
-refreshDataArea();
+const UI = {
+  modePill: document.getElementById("modePill"),
+  catPill: document.getElementById("catPill"),
+  score: document.getElementById("score"),
+  levelWrap: document.getElementById("levelWrap"),
+  level: document.getElementById("level"),
+  heartsWrap: document.getElementById("heartsWrap"),
+  hearts: document.getElementById("hearts"),
 
-/** 유틸 */
-function parseAnswerCells(str){
-  return String(str).trim().split(/\s+/).filter(Boolean);
-}
-function setHud(){
-  scoreEl.textContent = score;
-  comboEl.textContent = combo;
-  lifeEl.textContent = life >= 900 ? '∞' : life;
-}
-function bitsFromDots(dotSet){
-  // ✅ 네 규칙: 1→2→3→4→5→6 순서로 0/1
-  let bits = '';
-  for(let d=1; d<=6; d++) bits += dotSet.has(d) ? '1' : '0';
-  return bits;
-}
-function renderHeldDots(){
-  const bits = bitsFromDots(heldDots);
-  cellBitsEl.textContent = bits;
-  [...dotsEl.querySelectorAll('.dot')].forEach(dot => {
-    const d = Number(dot.dataset.dot);
-    dot.classList.toggle('on', heldDots.has(d));
-  });
-}
+  falling: document.getElementById("falling"),
+  fallText: document.getElementById("fallText"),
+  fallHint: document.getElementById("fallHint"),
+  gameBox: document.getElementById("gameBox"),
 
-/** 입력 버퍼 */
-let inputCells = [];
-let heldDots = new Set();
-let heldKeys = new Set();
+  typedRaw: document.getElementById("typedRaw"),
+  braillePreview: document.getElementById("braillePreview"),
 
-/** 활성 단어들 */
-let activeWords = []; // {text, y, speed, el, answerCells[]}
+  speedRange: document.getElementById("speedRange"),
+  speedVal: document.getElementById("speedVal"),
 
-let spawnTimer = 0;
-let lastT = performance.now();
+  startBtn: document.getElementById("startBtn"),
+  stopBtn: document.getElementById("stopBtn"),
+  resetBtn: document.getElementById("resetBtn"),
 
-function getUrgentWord(){
-  if(activeWords.length === 0) return null;
-  return activeWords.reduce((a,b) => (a.y > b.y ? a : b));
-}
+  menuOverlay: document.getElementById("menuOverlay"),
+  openMenuBtn: document.getElementById("openMenuBtn"),
+  closeMenuBtn: document.getElementById("closeMenuBtn"),
+  pickPractice: document.getElementById("pickPractice"),
+  pickGame: document.getElementById("pickGame"),
+  catGrid: document.getElementById("catGrid"),
 
-function resetInput(){
-  inputCells = [];
-  heldDots.clear();
-  heldKeys.clear();
-  renderHeldDots();
-  renderTyping();
+  overOverlay: document.getElementById("overOverlay"),
+  finalScore: document.getElementById("finalScore"),
+  retryBtn: document.getElementById("retryBtn"),
+  closeOverBtn: document.getElementById("closeOverBtn"),
+  backToMenuBtn: document.getElementById("backToMenuBtn"),
+};
+
+function normCells(s){
+  return String(s || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[^01 ]/g, "");
 }
 
-function renderTyping(msg=''){
-  const target = getUrgentWord();
-  const targetText = target ? target.text : '(단어 없음)';
-  const targetCells = target ? target.answerCells : [];
+/** =========================
+ * 점자(6점) 렌더
+ * ========================= */
+function renderBraille(cellsString){
+  const wrap = UI.braillePreview;
+  wrap.innerHTML = "";
 
-  // ✅ "일반 글자 진행도 표시" (입력 셀 개수만큼 단어 글자 보여주기)
-  const typedCount = inputCells.length;
-  const chars = Array.from(targetText);
-  const shown = target ? chars.slice(0, Math.min(typedCount, chars.length)).join('') : '';
+  const cells = normCells(cellsString).split(" ").filter(Boolean);
+  for(const bits of cells){
+    if(bits.length !== 6) continue;
 
-  // prefix 검사(틀린 지점 빨리 표시)
-  let prefixOk = true;
-  for(let i=0; i<inputCells.length && i<targetCells.length; i++){
-    if(inputCells[i] !== targetCells[i]) { prefixOk = false; break; }
-  }
-  const badge = target
-    ? (prefixOk ? `<span class="ok">● 진행 OK</span>` : `<span class="warn">● 여기서부터 틀렸을 수 있음</span>`)
-    : '';
+    const cell = document.createElement("div");
+    cell.className = "cell";
 
-  typingBox.innerHTML = `
-    <div><b>채점 대상(가장 아래)</b>: ${targetText}</div>
-    <div style="margin-top:6px;"><b>입력 진행(일반 글자)</b>: ${shown || '(아직 없음)'} ${badge}</div>
-    <div style="margin-top:6px;"><b>입력한 셀열</b>: ${inputCells.join(' ') || '(비어있음)'}</div>
-    ${msg ? `<div style="margin-top:6px;"><small>${msg}</small></div>`
-         : `<div style="margin-top:6px;"><small>키를 모두 떼면 1셀 확정. Enter로 채점.</small></div>`}
-  `;
-}
+    const on = (idx) => bits[idx] === "1";
+    const map = [0,3,1,4,2,5]; // 1,4 / 2,5 / 3,6
 
-/** 단어 생성 */
-function spawnWord(){
-  const keys = Object.keys(WORD_DB);
-  if(keys.length === 0) return;
-
-  const text = keys[Math.floor(Math.random() * keys.length)];
-  const answerCells = parseAnswerCells(WORD_DB[text]);
-
-  const el = document.createElement('div');
-  el.className = 'word';
-  el.textContent = text;
-  el.style.top = '-10px';
-  laneEl.appendChild(el);
-
-  activeWords.push({
-    text,
-    y: -10,
-    speed: (SETTINGS.baseFall + Math.random()*45 + Math.min(120, score/20)) * SETTINGS.speedMult,
-    el,
-    answerCells
-  });
-}
-
-function removeWord(w){
-  const idx = activeWords.indexOf(w);
-  if(idx >= 0) activeWords.splice(idx, 1);
-  w.el?.remove?.();
-}
-
-function loseLife(){
-  if(SETTINGS.mode !== 'game') return;
-  life -= 1;
-  combo = 0;
-  setHud();
-  if(life <= 0){
-    running = false;
-    paused = false;
-    alert('게임 오버! 리셋하거나 다시 시작해줘.');
-  }
-}
-
-/** 채점 */
-function judge(){
-  const target = getUrgentWord();
-  if(!target) return;
-
-  const user = inputCells.join(' ').trim();
-  const ans = target.answerCells.join(' ').trim();
-
-  if(user === ans){
-    score += 120 + combo*15;
-    combo += 1;
-    removeWord(target);
-    resetInput();
-    renderTyping('정답! 단어 제거됨.');
-  } else {
-    combo = 0;
-    score = Math.max(0, score - 30);
-    resetInput();
-    renderTyping('오답. 입력 초기화됨.');
-  }
-  setHud();
-}
-
-/** 일시정지 */
-function togglePause(){
-  if(!running) return;
-  paused = !paused;
-  renderTyping(paused ? '일시정지' : '재개');
-}
-
-/** 루프 */
-function tick(t){
-  const dt = (t - lastT) / 1000;
-  lastT = t;
-
-  if(running && !paused){
-    // 스폰
-    if(SETTINGS.mode === 'game'){
-      spawnTimer += dt;
-      if(spawnTimer >= SETTINGS.spawnInterval){
-        spawnTimer = 0;
-        if(activeWords.length < SETTINGS.maxOnScreen) spawnWord();
-      }
-    } else {
-      if(activeWords.length === 0) spawnWord();
+    for(const bi of map){
+      const d = document.createElement("div");
+      d.className = "dot" + (on(bi) ? " on" : "");
+      cell.appendChild(d);
     }
+    wrap.appendChild(cell);
+  }
+}
 
-    // 이동
-    for(const w of activeWords){
-      w.y += w.speed * dt;
-      w.el.style.top = w.y + 'px';
-    }
+function updateHUD(){
+  UI.modePill.textContent = `모드: ${state.mode ? (state.mode==="practice" ? "연습" : "게임") : "-"}`;
+  UI.catPill.textContent = `카테고리: ${state.category || "-"}`;
+  UI.score.textContent = String(state.score);
 
-    // 바닥 처리
-    const floorY = 440 - 54 - 28;
-    const hit = activeWords.filter(w => w.y >= floorY);
-    if(hit.length){
-      for(const w of hit){
-        removeWord(w);
-      }
-      resetInput();
-      if(SETTINGS.mode === 'game'){
-        loseLife();
-        renderTyping('바닥 도착! 라이프 -1');
-      } else {
-        renderTyping('연습 모드: 바닥 도착 → 다음 단어');
-      }
+  UI.levelWrap.style.display = (state.mode==="game") ? "inline-flex" : "none";
+  UI.heartsWrap.style.display = (state.mode==="game") ? "inline-flex" : "none";
+  UI.level.textContent = String(state.level);
+  UI.hearts.textContent = String(state.hearts);
+
+  UI.speedRange.disabled = !(state.mode==="practice");
+  UI.speedVal.textContent = String(Number(UI.speedRange.value));
+}
+
+function setTyped(s){
+  state.typed = normCells(s);
+  UI.typedRaw.textContent = state.typed || " ";
+  renderBraille(state.typed);
+}
+
+/** =========================
+ * 메뉴
+ * ========================= */
+function openMenu(){ UI.menuOverlay.classList.add("show"); }
+function closeMenu(){ UI.menuOverlay.classList.remove("show"); }
+
+function buildCategoryButtons(){
+  UI.catGrid.innerHTML = "";
+  for(const cat of CATEGORIES){
+    const btn = document.createElement("button");
+    btn.className = "btn";
+    btn.textContent = cat;
+    btn.onclick = () => {
+      state.category = cat;
+      updateHUD();
+      [...UI.catGrid.querySelectorAll("button")].forEach(b=>b.classList.remove("primary"));
+      btn.classList.add("primary");
+    };
+    UI.catGrid.appendChild(btn);
+  }
+}
+
+/** =========================
+ * 문제 스폰
+ * ========================= */
+function pickRandomItem(){
+  const list = BANK[state.category] || [];
+  if(list.length === 0) return null;
+  const idx = Math.floor(Math.random()*list.length);
+  return list[idx];
+}
+function spawnNew(){
+  state.current = pickRandomItem();
+  state.y = 16;
+  setTyped("");
+
+  if(!state.current){
+    UI.fallText.textContent = "(데이터 없음)";
+    return;
+  }
+  UI.fallText.textContent = state.current.text;
+  UI.fallHint.textContent = "Space/Enter로 제출";
+  UI.falling.style.top = `${state.y}px`;
+}
+
+/** =========================
+ * 점수/레벨/하트
+ * ========================= */
+function addScore(delta){ state.score += delta; updateHUD(); }
+
+function loseHeart(){
+  state.hearts -= 1;
+  updateHUD();
+  if(state.hearts <= 0) gameOver();
+}
+
+function maybeLevelUp(){
+  if(state.mode !== "game") return;
+  const target = 30 * state.level;
+  if(state.score >= target){
+    state.level += 1;
+    state.speed = Math.min(220, state.speed + 15);
+    updateHUD();
+  }
+}
+
+/** =========================
+ * 제출(스페이스/엔터)
+ * ========================= */
+function submitAnswer(){
+  if(!state.running || !state.current) return;
+
+  const typed = normCells(state.typed);
+  const answer = normCells(state.current.cells);
+
+  // “미완성 셀(6비트 미만)”이면 제출 막음
+  const parts = typed.split(" ").filter(Boolean);
+  if(parts.length === 0) return;
+  if(parts[parts.length-1].length !== 6) return;
+
+  if(typed === answer){
+    addScore(+10);
+    maybeLevelUp();
+    spawnNew();
+  }else{
+    addScore(-2);
+  }
+}
+
+/** =========================
+ * 루프(낙하)
+ * ========================= */
+let lastTs = 0;
+function loop(ts){
+  if(!state.running) return;
+  if(!lastTs) lastTs = ts;
+  const dt = (ts - lastTs) / 1000;
+  lastTs = ts;
+
+  const pxPerSec = (state.mode==="practice")
+    ? (Number(UI.speedRange.value) / 2.0)
+    : (state.speed / 2.0);
+
+  state.y += pxPerSec * dt;
+  UI.falling.style.top = `${state.y}px`;
+
+  const floorY = UI.gameBox.clientHeight - 40 - 44;
+  if(state.y >= floorY){
+    if(state.mode === "practice"){
+      addScore(-5);
+      spawnNew();
+    }else{
+      loseHeart();
+      spawnNew();
     }
   }
 
-  requestAnimationFrame(tick);
+  requestAnimationFrame(loop);
 }
-requestAnimationFrame(tick);
 
-/** 입력 이벤트 */
-window.addEventListener('keydown', (e) => {
-  const k = e.key.toLowerCase();
+/** =========================
+ * 시작/정지/리셋/게임오버
+ * ========================= */
+function startGame(){
+  if(!state.mode || !state.category){
+    openMenu();
+    return;
+  }
+  if(state.running) return;
 
-  if(k === ' '){ e.preventDefault(); togglePause(); return; }
-  if(k === 'enter'){ e.preventDefault(); judge(); return; }
+  state.running = true;
+  lastTs = 0;
 
-  if(k === 'backspace'){
-    e.preventDefault();
-    inputCells.pop();
-    renderTyping('마지막 셀 삭제됨.');
+  if(state.mode === "practice"){
+    state.speed = Number(UI.speedRange.value);
+    state.level = 1;
+    state.hearts = 5;
+  }else{
+    state.level = 1;
+    state.hearts = 5;
+    state.speed = 60;
+  }
+
+  updateHUD();
+  spawnNew();
+  requestAnimationFrame(loop);
+}
+
+function stopGame(){
+  state.running = false;
+  lastTs = 0;
+}
+
+function resetAll(){
+  stopGame();
+  state.score = 0;
+  state.level = 1;
+  state.hearts = 5;
+  state.current = null;
+  state.y = 16;
+  setTyped("");
+  UI.fallText.textContent = "-";
+  updateHUD();
+}
+
+function gameOver(){
+  stopGame();
+  UI.finalScore.textContent = String(state.score);
+  UI.overOverlay.classList.add("show");
+}
+
+function closeGameOver(){
+  UI.overOverlay.classList.remove("show");
+}
+
+/** =========================
+ * 입력
+ * - Space는 이제 “제출”이라서 셀 구분용으로 쓰지 않음
+ * - 0/1만 입력: 6자리 채우면 자동으로 공백+다음 셀로
+ * ========================= */
+function handleKey(e){
+  if(UI.menuOverlay.classList.contains("show") || UI.overOverlay.classList.contains("show")){
+    if(e.key === "Escape"){
+      closeMenu();
+      closeGameOver();
+    }
     return;
   }
 
-  if(KEY_TO_DOT[k]){
+  // 제출키: Space 또는 Enter
+  if(e.code === "Space" || e.key === "Enter"){
     e.preventDefault();
-    heldKeys.add(k);
-    heldDots.add(KEY_TO_DOT[k]);
-    renderHeldDots();
+    submitAnswer();
+    return;
   }
-});
 
-window.addEventListener('keyup', (e) => {
-  const k = e.key.toLowerCase();
-  if(KEY_TO_DOT[k]){
+  if(e.key === "Backspace"){
     e.preventDefault();
-    heldKeys.delete(k);
-    // ✅ 키를 모두 떼는 순간 1셀 확정
-    if(heldKeys.size === 0){
-      const bits = bitsFromDots(heldDots);
-      if(bits !== '000000') inputCells.push(bits);
-      heldDots.clear();
-      renderHeldDots();
-      renderTyping();
-    }
+    const s = state.typed;
+    if(!s) return;
+    setTyped(s.slice(0, -1));
+    return;
   }
-});
 
-/** 버튼 */
-startBtn.addEventListener('click', () => {
-  if(!running){
-    running = true;
-    paused = false;
-    spawnTimer = 0;
-    if(activeWords.length === 0) spawnWord();
-  } else {
-    paused = false;
-  }
-  renderTyping();
-});
+  if(e.key === "0" || e.key === "1"){
+    e.preventDefault();
+    let s = state.typed.replace(/\s+/g, " ").trimEnd();
 
-resetBtn.addEventListener('click', () => {
-  running = false;
-  paused = false;
-  score = 0; combo = 0;
-  activeWords.forEach(w => w.el?.remove?.());
-  activeWords = [];
-  spawnTimer = 0;
-  resetInput();
+    const parts = s.split(" ").filter(Boolean);
+    const last = parts.length ? parts[parts.length-1] : "";
 
-  applyPreset();
-  setHud();
-  renderTyping('리셋 완료.');
-});
-
-/** 데이터 적용 */
-applyDataBtn.addEventListener('click', () => {
-  try{
-    const obj = JSON.parse(dataArea.value);
-
-    for(const [w, v] of Object.entries(obj)){
-      if(typeof w !== 'string' || !w.trim()) throw new Error('단어 키가 비었어.');
-      if(typeof v !== 'string') throw new Error(`"${w}"의 값은 문자열이어야 해.`);
-      const cells = parseAnswerCells(v);
-      if(cells.length === 0) throw new Error(`"${w}" 값이 비어있어.`);
-      for(const c of cells){
-        if(!/^[01]{6}$/.test(c)) throw new Error(`"${w}"에 6비트(0/1) 형식이 아닌 셀이 있어: ${c}`);
-      }
+    // 마지막 셀 6개 꽉 찼으면 새 셀 시작(공백 추가)
+    if(last.length >= 6){
+      s = (s + " ").trimEnd();
     }
 
-    WORD_DB = obj;
-    dataMsg.textContent = '적용 완료!';
-    setTimeout(()=>dataMsg.textContent='', 1200);
-    renderTyping('데이터 적용됨.');
-  } catch(err){
-    dataMsg.textContent = '오류: ' + err.message;
+    s = (s + e.key).replace(/\s+/g, " ");
+
+    // 방금 입력으로 마지막 셀이 6개가 되면, 다음 입력을 위해 공백 하나 자동 추가(표시상 깔끔)
+    const parts2 = s.split(" ").filter(Boolean);
+    const last2 = parts2.length ? parts2[parts2.length-1] : "";
+    if(last2.length === 6){
+      s = (s + " ").replace(/\s+/g, " ").trimEnd(); // 끝 공백은 UI에서 보기 좋게 제거
+    }
+
+    setTyped(s);
+    return;
   }
+}
+
+/** =========================
+ * 이벤트 바인딩
+ * ========================= */
+UI.speedRange.addEventListener("input", ()=> {
+  UI.speedVal.textContent = String(UI.speedRange.value);
+  if(state.mode==="practice") state.speed = Number(UI.speedRange.value);
 });
 
-/** 초기화 */
-applyPreset();
-syncUI();
-setHud();
-renderHeldDots();
-renderTyping();
+UI.startBtn.onclick = startGame;
+UI.stopBtn.onclick = stopGame;
+UI.resetBtn.onclick = resetAll;
+
+UI.openMenuBtn.onclick = openMenu;
+UI.closeMenuBtn.onclick = closeMenu;
+
+UI.pickPractice.onclick = () => { state.mode="practice"; updateHUD(); };
+UI.pickGame.onclick = () => { state.mode="game"; updateHUD(); };
+
+UI.closeOverBtn.onclick = closeGameOver;
+UI.backToMenuBtn.onclick = () => { closeGameOver(); openMenu(); };
+UI.retryBtn.onclick = () => {
+  closeGameOver();
+  state.mode = "game";
+  state.score = 0;
+  state.level = 1;
+  state.hearts = 5;
+  state.speed = 60;
+  updateHUD();
+  startGame();
+};
+
+document.addEventListener("keydown", handleKey);
+
+/** =========================
+ * 초기화
+ * ========================= */
+buildCategoryButtons();
+updateHUD();
+openMenu();
+setTyped("");
 </script>
 </body>
 </html>
