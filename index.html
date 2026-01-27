@@ -542,6 +542,7 @@ function cellsToHangul(cellsString){
   const VOWEL_BY_CELL = {
     "110001":"ㅏ","111010":"ㅐ","001110":"ㅑ","011100":"ㅓ","101110":"ㅔ","100011":"ㅕ",
     "101001":"ㅗ","001101":"ㅛ","101100":"ㅜ","100101":"ㅠ","010101":"ㅡ","101010":"ㅣ",
+    "101111":"ㅚ","111001":"ㅘ","111100":"ㅝ","010111":"ㅢ","001100":"ㅖ"
     // 복합모음(2셀짜리)은 지금 로직에선 '□' 뜰 수 있음 → 필요하면 다음 단계에서 붙여줄게
   };
 
@@ -683,30 +684,56 @@ if (CHO_BY_CELL[cell]) {
   continue;
 }
 
-    // 3) 모음
-    if (VOWEL_BY_CELL[cell]) {
-      const vowel = VOWEL_BY_CELL[cell];
+// 3️⃣ 모음 (복합 모음 우선 처리)
+{
+  const nextCell = cells[i + 1];
+  let vowel = null;
+  let consumed = 1;
 
-      if (lastCho !== null) {
-        // 초성 + 모음 => 음절 완성 (마지막 글자 교체)
-        const code =
-          0xAC00 +
-          CHO.indexOf(lastCho) * 21 * 28 +
-          JUNG.indexOf(vowel) * 28;
-
-        result[result.length - 1] = String.fromCharCode(code);
-        lastCho = null;
-      } else {
-        // 모음 단독 => ㅇ 자동 보충
-        const code =
-          0xAC00 +
-          CHO.indexOf("ㅇ") * 21 * 28 +
-          JUNG.indexOf(vowel) * 28;
-
-        result.push(String.fromCharCode(code));
-      }
-      continue;
+  // 🔥 2셀짜리 복합 모음 먼저 체크
+  if (nextCell) {
+    const two = cell + " " + nextCell;
+    const COMPOSITE_VOWEL = {
+      "101100 111010": "ㅟ",
+      "001110 111010": "ㅒ",
+      "111001 111010": "ㅙ",
+      "111100 111010": "ㅞ",
+    };
+    if (COMPOSITE_VOWEL[two]) {
+      vowel = COMPOSITE_VOWEL[two];
+      consumed = 2;
     }
+  }
+
+  // 🔹 단일 모음
+  if (!vowel && VOWEL_BY_CELL[cell]) {
+    vowel = VOWEL_BY_CELL[cell];
+  }
+
+  if (vowel) {
+    if (lastCho !== null) {
+      // 초성 + 모음
+      const code =
+        0xAC00 +
+        CHO.indexOf(lastCho) * 21 * 28 +
+        JUNG.indexOf(vowel) * 28;
+
+      result[result.length - 1] = String.fromCharCode(code);
+      lastCho = null;
+    } else {
+      // 모음 단독 → ㅇ 자동 보충
+      const code =
+        0xAC00 +
+        CHO.indexOf("ㅇ") * 21 * 28 +
+        JUNG.indexOf(vowel) * 28;
+
+      result.push(String.fromCharCode(code));
+    }
+
+    i += consumed - 1; // 🔥 2셀 모음이면 다음 셀 소비
+    continue;
+  }
+}
 
     // 4) ✅ 종성(받침)
     if (JONG_BY_CELL[cell] && result.length > 0) {
