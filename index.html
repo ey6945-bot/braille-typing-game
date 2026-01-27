@@ -142,6 +142,9 @@
         <div style="flex:1;min-width:260px">
           <div class="muted">입력한 셀열(원문) — 6자리마다 자동으로 셀이 나뉘어</div>
           <div id="typedRaw"> </div>
+          <div class="muted" style="margin-top:6px">한글 해석</div>
+<div id="typedHangul" class="pill" style="min-height:32px"> </div>
+
           <div class="muted" style="margin-top:8px">입력한 점자(미리보기)</div>
           <div id="braillePreview" class="brailleRow" aria-label="점자 미리보기"></div>
         </div>
@@ -494,6 +497,7 @@ const UI = {
 
   typedRaw: document.getElementById("typedRaw"),
   braillePreview: document.getElementById("braillePreview"),
+    typedHangul: document.getElementById("typedHangul"),
 
   speedRange: document.getElementById("speedRange"),
   speedVal: document.getElementById("speedVal"),
@@ -521,6 +525,23 @@ function normCells(s){
     .trim()
     .replace(/\s+/g, " ")
     .replace(/[^01 ]/g, "");
+}
+// =========================
+// 셀열 → 한글 해석(현재 카테고리 기준)
+// =========================
+function cellsToHangul(cellsString){
+  const cells = normCells(cellsString).split(" ").filter(Boolean);
+  if (cells.length === 0) return "";
+
+  const dict = BANK[state.category] || [];
+  let result = [];
+
+  for (const cell of cells) {
+    const found = dict.find(item => normCells(item.cells) === cell);
+    result.push(found ? found.text : "□"); // 못 찾으면 □
+  }
+
+  return result.join("");
 }
 
 /** =========================
@@ -565,9 +586,19 @@ function updateHUD(){
 
 function setTyped(s){
   state.typed = normCells(s);
+
+  // 원문(셀열)
   UI.typedRaw.textContent = state.typed || " ";
+
+  // 점자 미리보기
   renderBraille(state.typed);
+
+  // 한글 해석(추가한 div가 있을 때만)
+  if (UI.typedHangul) {
+    UI.typedHangul.textContent = cellsToHangul(state.typed) || " ";
+  }
 }
+
 
 /** =========================
  * 메뉴
@@ -745,59 +776,83 @@ function closeGameOver(){
 }
 
 /** =========================
- * 입력
- * - Space는 이제 “제출”이라서 셀 구분용으로 쓰지 않음
- * - 0/1만 입력: 6자리 채우면 자동으로 공백+다음 셀로
+ * 입력 (점자 동시입력 방식)
+ * f d s = 1 2 3
+ * j k l = 4 5 6
+ * keyup 시 1셀 확정
+ * Space / Enter = 제출
  * ========================= */
+
+// 현재 눌려 있는 점들
+const pressedDots = new Set();
+
+// 키 → 점 번호
+const DOT_KEY_MAP = {
+  f: 1, d: 2, s: 3,
+  j: 4, k: 5, l: 6,
+};
+
 function handleKey(e){
-  if(UI.menuOverlay.classList.contains("show") || UI.overOverlay.classList.contains("show")){
-    if(e.key === "Escape"){
+  // 모달 열려 있으면 입력 막기
+  if (
+    UI.menuOverlay.classList.contains("show") ||
+    UI.overOverlay.classList.contains("show")
+  ) {
+    if (e.key === "Escape") {
       closeMenu();
       closeGameOver();
     }
     return;
   }
 
-  // 제출키: Space 또는 Enter
-  if(e.code === "Space" || e.key === "Enter"){
+  const key = e.key.toLowerCase();
+
+  // 제출
+  if (e.code === "Space" || e.key === "Enter") {
     e.preventDefault();
     submitAnswer();
     return;
   }
 
-  if(e.key === "Backspace"){
+  // 백스페이스 → 마지막 셀 삭제
+  if (e.key === "Backspace") {
     e.preventDefault();
-    const s = state.typed;
-    if(!s) return;
-    setTyped(s.slice(0, -1));
+    const parts = state.typed.trim().split(" ").filter(Boolean);
+    parts.pop();
+    setTyped(parts.join(" "));
     return;
   }
 
-  if(e.key === "0" || e.key === "1"){
+  // 점자 키 눌림
+  if (DOT_KEY_MAP[key]) {
     e.preventDefault();
-    let s = state.typed.replace(/\s+/g, " ").trimEnd();
-
-    const parts = s.split(" ").filter(Boolean);
-    const last = parts.length ? parts[parts.length-1] : "";
-
-    // 마지막 셀 6개 꽉 찼으면 새 셀 시작(공백 추가)
-    if(last.length >= 6){
-      s = (s + " ").trimEnd();
-    }
-
-    s = (s + e.key).replace(/\s+/g, " ");
-
-    // 방금 입력으로 마지막 셀이 6개가 되면, 다음 입력을 위해 공백 하나 자동 추가(표시상 깔끔)
-    const parts2 = s.split(" ").filter(Boolean);
-    const last2 = parts2.length ? parts2[parts2.length-1] : "";
-    if(last2.length === 6){
-      s = (s + " ").replace(/\s+/g, " ").trimEnd(); // 끝 공백은 UI에서 보기 좋게 제거
-    }
-
-    setTyped(s);
-    return;
+    pressedDots.add(DOT_KEY_MAP[key]);
   }
 }
+
+// 키에서 손 뗄 때 = 점자 1셀 확정
+document.addEventListener("keyup", (e) => {
+  const key = e.key.toLowerCase();
+  if (!DOT_KEY_MAP[key]) return;
+
+  if (pressedDots.size === 0) return;
+
+  const bits = [0,0,0,0,0,0];
+  pressedDots.forEach(dot => {
+    bits[dot - 1] = 1;
+  });
+
+  pressedDots.clear();
+
+  const cell = bits.join("");
+
+  const next = state.typed
+    ? state.typed + " " + cell
+    : cell;
+
+  setTyped(next);
+});
+
 
 /** =========================
  * 이벤트 바인딩
