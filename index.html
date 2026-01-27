@@ -544,8 +544,21 @@ function cellsToHangul(cellsString){
   const VOWEL_BY_CELL = {
     "110001":"ㅏ","001110":"ㅑ","011100":"ㅓ","100011":"ㅕ",
     "101001":"ㅗ","001101":"ㅛ","101100":"ㅜ","100101":"ㅠ",
-    "010101":"ㅡ","101010":"ㅣ"
+    "010101":"ㅡ","101010":"ㅣ",
+    "111010":"ㅐ", "101110":"ㅔ", "101111":"ㅚ", "111001":"ㅘ", "111100":"ㅝ", "010111":"ㅢ", "001100":"ㅖ"
   };
+
+  const COMPLEX_VOWEL = {
+  // ㅗ 계열
+  "111001+111010": "ㅙ",
+
+  // ㅜ 계열
+  "101100+111010": "ㅟ",
+  "111100+111010": "ㅞ",
+
+  // 기타
+  "001110+111010": "ㅒ",
+};
 
   // 된소리
   const TENSE = {
@@ -588,30 +601,36 @@ for (let i = 0; i < cells.length; i++) {
     continue;
   }
 
-    // 3️⃣ 모음
-    if (VOWEL_BY_CELL[cell]) {
-      const vowel = VOWEL_BY_CELL[cell];
+    // 3️⃣ 모음 (겹모음 포함)
+if (VOWEL_BY_CELL[cell]) {
+  const nextCell = cells[cells.indexOf(cell) + 1];
+  let vowel = VOWEL_BY_CELL[cell];
 
-      if (lastCho !== null) {
-        // 초성 + 모음 → 음절 완성
-        const code =
-          0xAC00 +
-          CHO.indexOf(lastCho) * 21 * 28 +
-          JUNG.indexOf(vowel) * 28;
+  // 겹모음 체크
+  if (nextCell && COMPLEX_VOWEL[cell + "+" + nextCell]) {
+    vowel = COMPLEX_VOWEL[cell + "+" + nextCell];
+    // 다음 셀 하나 소비
+    cells.shift();
+  }
 
-        result[result.length - 1] = String.fromCharCode(code);
-        lastCho = null;
-      } else {
-        // 모음 단독 → ㅇ 자동 보충
-        const code =
-          0xAC00 +
-          CHO.indexOf("ㅇ") * 21 * 28 +
-          JUNG.indexOf(vowel) * 28;
+  if (lastCho !== null) {
+    const code =
+      0xAC00 +
+      CHO.indexOf(lastCho) * 21 * 28 +
+      JUNG.indexOf(vowel) * 28;
 
-        result.push(String.fromCharCode(code));
-      }
-      continue;
-    }
+    result[result.length - 1] = String.fromCharCode(code);
+    lastCho = null;
+  } else {
+    const code =
+      0xAC00 +
+      CHO.indexOf("ㅇ") * 21 * 28 +
+      JUNG.indexOf(vowel) * 28;
+
+    result.push(String.fromCharCode(code));
+  }
+  continue;
+}
 
     // 4️⃣ 알 수 없는 셀
     result.push("□");
