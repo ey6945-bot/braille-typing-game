@@ -687,6 +687,31 @@ if (englishMode) {
       continue;
     }
 
+    // 2️⃣-5️⃣ ✅ '것 / 그래서 계열' 2셀 lookahead 처리
+const TWO_CELL_ABBREV = {
+  // 것
+  "000111 011100": "것",
+
+  // 그래서 계열
+  "100000 011100": "그래서",
+  "100000 100100": "그러나",
+  "100000 010010": "그러면",
+  "100000 010001": "그러므로",
+  "100000 101110": "그런데",
+  "100000 101001": "그리고",
+};
+
+const nextCell = cells[i + 1];
+if (nextCell) {
+  const pair = cell + " " + nextCell;
+  if (TWO_CELL_ABBREV[pair]) {
+    result.push(TWO_CELL_ABBREV[pair]);
+    lastCho = null;
+    i++; // 🔥 다음 셀 소비
+    continue;
+  }
+}
+
     // 1-6) ✅ 억/언/얼/연/열/영/… 약자 처리
 const SYLLABLE_ABBREV = {
   "100111": { vowel: "ㅓ", jong: "ㄱ" }, // 억
