@@ -303,19 +303,16 @@ const BANK = {
   ],
   "약자": [
     { text:"가", cells:"110101" },
-    { text:"나", cells:"010010" },
-    { text:"다", cells:"001010" },
-    { text:"라", cells:"010000" },
-    { text:"마", cells:"010001" },
-    { text:"바", cells:"110000" },
-    { text:"사", cells:"001000" },
-    { text:"아", cells:"011011" },
-    { text:"자", cells:"101000" },
-    { text:"차", cells:"011000" },
-    { text:"카", cells:"011010" },
-    { text:"타", cells:"011001" },
-    { text:"파", cells:"010011" },
-    { text:"하", cells:"001011" },
+    { text:"나", cells:"100100" },
+    { text:"다", cells:"010100" },
+    { text:"마", cells:"100010" },
+    { text:"바", cells:"000110" },
+    { text:"사", cells:"000111" },
+    { text:"자", cells:"000101" },
+    { text:"카", cells:"110100" },
+    { text:"타", cells:"110010" },
+    { text:"파", cells:"100110" },
+    { text:"하", cells:"010110" },
     { text:"것", cells:"000111 011100" },
     { text:"ㅆ", cells:"001100" },
     { text:"억", cells:"100111" },
@@ -558,6 +555,9 @@ function cellsToHangul(cellsString){
 
   let result = [];
   let lastCho = null; // 직전에 입력된 초성(아직 모음과 결합 전)
+  let numberMode = false;
+  let englishMode = false;
+  let capitalNext = false;
 
   const isHangulSyllable = (ch) => {
     const code = ch.charCodeAt(0);
@@ -569,13 +569,78 @@ for (const item of BANK["약자"]) {
   ABBREV_BY_CELL[normCells(item.cells)] = item.text;
 }
 
+const SYMBOL_BY_CELL = {};
+for (const item of BANK["부호"]) {
+  SYMBOL_BY_CELL[normCells(item.cells)] = item.text;
+}
+
+const NUMBER_BY_CELL = {};
+for (const item of BANK["숫자"]) {
+  NUMBER_BY_CELL[normCells(item.cells)] = item.text;
+}
+
+const ENGLISH_BY_CELL = {};
+for (const item of BANK["영어"]) {
+  ENGLISH_BY_CELL[normCells(item.cells)] = item.text;
+}
+
   for (let i = 0; i < cells.length; i++) {
     const cell = cells[i];
-    
-    // 0️⃣ 약자 우선 처리 (단어/약자 카테고리)
-if (ABBREV_BY_CELL[cell]) {
-  result.push(ABBREV_BY_CELL[cell]);
+
+// 0-1️⃣ 기호
+if (SYMBOL_BY_CELL[cell]) {
+  result.push(SYMBOL_BY_CELL[cell]);
   lastCho = null;
+  tensePending = false;
+  continue;
+}
+
+// 0-2️⃣ 숫자 수표
+if (cell === "001111") {
+  numberMode = true;
+  continue;
+}
+
+if (numberMode) {
+  const numMap = {
+    "100000":"1", "110000":"2", "100100":"3", "100110":"4", "100010":"5",
+    "110100":"6", "110110":"7", "110010":"8", "010100":"9", "010110":"0"
+  };
+  if (numMap[cell]) {
+    result.push(numMap[cell]);
+    continue;
+  } else {
+    numberMode = false; // 숫자 끝
+  }
+}
+// 0-3️⃣ 영어 모드
+if (cell === "001011") {
+  englishMode = true;
+  continue;
+}
+if (cell === "010011" && englishMode) {
+  englishMode = false;
+  continue;
+}
+if (cell === "000001" && englishMode) {
+  capitalNext = true;
+  continue;
+}
+
+if (englishMode) {
+  const ENG_BY_CELL = {
+    "100000":"a","110000":"b","100100":"c","100110":"d","100010":"e",
+    "110100":"f","110110":"g","110010":"h","010100":"i","010110":"j",
+    "101000":"k","111000":"l","101100":"m","101110":"n","101010":"o",
+    "111100":"p","111110":"q","111010":"r","011100":"s","011110":"t",
+    "101001":"u","111001":"v","010111":"w","101101":"x","101111":"y","101011":"z"
+  };
+  let ch = ENG_BY_CELL[cell] || "□";
+  if (capitalNext) {
+    ch = ch.toUpperCase();
+    capitalNext = false;
+  }
+  result.push(ch);
   continue;
 }
 
@@ -600,13 +665,23 @@ if (ABBREV_BY_CELL[cell]) {
       continue;
     }
 
-    // 2) 초성
-    if (CHO_BY_CELL[cell]) {
-      const cho = CHO_BY_CELL[cell];
-      lastCho = cho;
-      result.push(cho);
-      continue;
-    }
+// 2️⃣ 초성 / 초성 약자 처리
+if (CHO_BY_CELL[cell]) {
+  const cho = CHO_BY_CELL[cell];
+  const nextCell = cells[i + 1];
+
+  // 🔹 다음 셀이 "모음이 아니면" → 약자로 처리
+  if (!VOWEL_BY_CELL[nextCell] && ABBREV_BY_CELL[cell]) {
+    result.push(ABBREV_BY_CELL[cell]); // 예: "자"
+    lastCho = null;
+    continue;
+  }
+
+  // 🔹 기본: 초성으로 처리
+  lastCho = cho;
+  result.push(cho);
+  continue;
+}
 
     // 3) 모음
     if (VOWEL_BY_CELL[cell]) {
