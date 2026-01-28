@@ -549,7 +549,7 @@ function cellsToHangul(cellsString){
 
   const JONG_BY_CELL = {
     "100000":"ㄱ","010010":"ㄴ","001010":"ㄷ","010000":"ㄹ","010001":"ㅁ","110000":"ㅂ",
-    "001000":"ㅅ","011011":"ㅇ","101000":"ㅈ","011000":"ㅊ","011010":"ㅋ","011001":"ㅌ","010011":"ㅍ","001011":"ㅎ","001100":"ㅆ"
+    "001000":"ㅅ","011011":"ㅇ","101000":"ㅈ","011000":"ㅊ","011010":"ㅋ","011001":"ㅌ","010011":"ㅍ","001011":"ㅎ",
   };
 
   // 된소리: 000001 + (ㄱ/ㄷ/ㅂ/ㅅ/ㅈ) => ㄲ/ㄸ/ㅃ/ㅆ/ㅉ
@@ -607,22 +607,6 @@ for (const item of BANK["영어"]) {
 
   for (let i = 0; i < cells.length; i++) {
     const cell = cells[i];
-
-    if (cells[i + 1]) {
-  const pair = cell + " " + cells[i + 1];
-  if (pair === "000111 011100") {
-    result.push("것");
-    lastCho = null;
-    i++;
-    continue;
-  }
-}
-
-if (ABBREV_BY_CELL[cell]) {
-  result.push(ABBREV_BY_CELL[cell]);
-  lastCho = null;
-  continue;
-}
 
 // ===================================================
 // 0️⃣ 표 기반 묶음 처리 (한글보다 우선)
@@ -701,12 +685,9 @@ if (cell === "000001" && cells[i + 1] === "000001") {
   continue;
 }
 
-// 단위표 조합: 반드시 앞에 단위표가 있을 때만
-if (
-  cells[i - 1] === "001011" &&
-  cell === "100110"
-) {
-  result.push("°");
+// 로마자표: 001011
+if (cell === "001011") {
+  englishMode = "lower";
   continue;
 }
 
@@ -974,66 +955,29 @@ if (CHO_BY_CELL[cell]) {
   }
 }
 
-// 4️⃣ 종성(받침) + 겹받침
-if (JONG_BY_CELL[cell] && result.length > 0) {
-  const jong1 = JONG_BY_CELL[cell];
-  const prevChar = result[result.length - 1];
+    // 4) ✅ 종성(받침)
+    if (JONG_BY_CELL[cell] && result.length > 0) {
+      const jong = JONG_BY_CELL[cell];
+      const prev = result[result.length - 1];
 
-  // 직전이 한글 음절일 때만 받침 가능
-  if (isHangulSyllable(prevChar)) {
-    const code = prevChar.charCodeAt(0) - 0xAC00;
-    const choIndex  = Math.floor(code / (21 * 28));
-    const jungIndex = Math.floor((code % (21 * 28)) / 28);
-    const jongIndex = code % 28;
+      // 직전이 완성된 한글 음절이면 받침으로 붙이기
+      if (isHangulSyllable(prev)) {
+        const code = prev.charCodeAt(0) - 0xAC00;
+        const choIndex  = Math.floor(code / (21 * 28));
+        const jungIndex = Math.floor((code % (21 * 28)) / 28);
 
-    // 🔹 아직 받침이 없는 경우
-    if (jongIndex === 0) {
-      const newJongIndex = JONG.indexOf(jong1);
-      if (newJongIndex > 0) {
-        result[result.length - 1] =
-          String.fromCharCode(
-            0xAC00 + choIndex * 21 * 28 + jungIndex * 28 + newJongIndex
-          );
-        continue;
+        const jongIndex = JONG.indexOf(jong);
+        if (jongIndex >= 0) {
+          const newCode = 0xAC00 + choIndex * 21 * 28 + jungIndex * 28 + jongIndex;
+          result[result.length - 1] = String.fromCharCode(newCode);
+          continue;
+        }
       }
+
+      // 음절이 아니면 그냥 문자로 표시(예외 안전)
+      result.push(jong);
+      continue;
     }
-
-    // 🔹 이미 받침이 있고 → 겹받침 시도
-    const jong2 = jong1;
-    const jongCombo = {
-      "ㄱㄱ":"ㄲ",
-      "ㄱㅅ":"ㄳ",
-      "ㄴㅈ":"ㄵ",
-      "ㄴㅎ":"ㄶ",
-      "ㄹㄱ":"ㄺ",
-      "ㄹㅁ":"ㄻ",
-      "ㄹㅂ":"ㄼ",
-      "ㄹㅅ":"ㄽ",
-      "ㄹㅌ":"ㄾ",
-      "ㄹㅍ":"ㄿ",
-      "ㄹㅎ":"ㅀ",
-      "ㅂㅅ":"ㅄ",
-    };
-
-    const jong1Char = JONG[jongIndex];
-    const combo = jongCombo[jong1Char + jong2];
-
-    if (combo) {
-      const comboIndex = JONG.indexOf(combo);
-      if (comboIndex > 0) {
-        result[result.length - 1] =
-          String.fromCharCode(
-            0xAC00 + choIndex * 21 * 28 + jungIndex * 28 + comboIndex
-          );
-        continue;
-      }
-    }
-  }
-
-  // 실패 시 그냥 문자로
-  result.push(jong1);
-  continue;
-}
 
     // 5) 알 수 없는 셀
     result.push("□");
