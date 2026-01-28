@@ -608,6 +608,22 @@ for (const item of BANK["영어"]) {
   for (let i = 0; i < cells.length; i++) {
     const cell = cells[i];
 
+    if (cells[i + 1]) {
+  const pair = cell + " " + cells[i + 1];
+  if (pair === "000111 011100") {
+    result.push("것");
+    lastCho = null;
+    i++;
+    continue;
+  }
+}
+
+if (ABBREV_BY_CELL[cell]) {
+  result.push(ABBREV_BY_CELL[cell]);
+  lastCho = null;
+  continue;
+}
+
 // ===================================================
 // 0️⃣ 표 기반 묶음 처리 (한글보다 우선)
 // ===================================================
@@ -685,9 +701,12 @@ if (cell === "000001" && cells[i + 1] === "000001") {
   continue;
 }
 
-// 로마자표: 001011
-if (cell === "001011") {
-  englishMode = "lower";
+// 단위표 조합: 반드시 앞에 단위표가 있을 때만
+if (
+  cells[i - 1] === "001011" &&
+  cell === "100110"
+) {
+  result.push("°");
   continue;
 }
 
