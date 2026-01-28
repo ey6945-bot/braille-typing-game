@@ -714,14 +714,6 @@ if (englishMode) {
   }
 }
 
-// 0-1️⃣ 기호
-if (SYMBOL_BY_CELL[cell]) {
-  result.push(SYMBOL_BY_CELL[cell]);
-  lastCho = null;
-  tensePending = false;
-  continue;
-}
-
 // 0-2️⃣ 숫자 수표
 if (cell === "001111") {
   numberMode = true;
@@ -741,10 +733,7 @@ if (numberMode) {
   }
 }
 // 0-3️⃣ 영어 모드
-if (cell === "001011") {
-  englishMode = true;
-  continue;
-}
+
 if (cell === "010011" && englishMode) {
   englishMode = false;
   continue;
